@@ -1,0 +1,1383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GLRR Results Formatter</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap');
+
+  :root {
+    --red: #c0392b;
+    --red-dark: #922b21;
+    --gold: #e8c840;
+    --navy: #1a1a2e;
+    --navy-mid: #252545;
+    --navy-light: #2e2e55;
+    --white: #f5f5f0;
+    --gray: #8888aa;
+    --green: #27ae60;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--navy);
+    color: var(--white);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+  }
+
+  header {
+    background: var(--navy-mid);
+    border-bottom: 3px solid var(--red);
+    padding: 18px 32px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .logo-text {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 28px;
+    letter-spacing: 2px;
+    color: var(--white);
+  }
+
+  .logo-text span { color: var(--gold); }
+
+  .tag {
+    background: var(--red);
+    color: white;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    padding: 3px 8px;
+    border-radius: 2px;
+  }
+
+  .main {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    min-height: calc(100vh - 67px);
+  }
+
+  .panel {
+    padding: 28px;
+    border-right: 1px solid var(--navy-light);
+  }
+
+  .panel-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 18px;
+    letter-spacing: 2px;
+    color: var(--gold);
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .panel-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--navy-light);
+  }
+
+  /* Meta inputs */
+  .meta-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .field label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    color: var(--gray);
+    text-transform: uppercase;
+  }
+
+  .field select,
+  .field input {
+    background: var(--navy-mid);
+    border: 1px solid var(--navy-light);
+    border-radius: 4px;
+    color: var(--white);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    padding: 9px 12px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .field select:focus,
+  .field input:focus {
+    border-color: var(--gold);
+  }
+
+  .field select option { background: var(--navy-mid); }
+
+  /* Paste area */
+  .paste-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    color: var(--gray);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    display: block;
+  }
+
+  textarea {
+    width: 100%;
+    height: 260px;
+    background: var(--navy-mid);
+    border: 1px solid var(--navy-light);
+    border-radius: 4px;
+    color: var(--white);
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    line-height: 1.6;
+    padding: 14px;
+    resize: vertical;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  textarea:focus { border-color: var(--gold); }
+  textarea::placeholder { color: var(--gray); opacity: 0.5; }
+
+  .hint {
+    font-size: 11px;
+    color: var(--gray);
+    margin-top: 8px;
+    line-height: 1.5;
+  }
+
+  .btn-row {
+    display: flex;
+    gap: 10px;
+    margin-top: 16px;
+  }
+
+  .btn {
+    padding: 11px 22px;
+    border-radius: 4px;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 16px;
+    letter-spacing: 1.5px;
+    cursor: pointer;
+    border: none;
+    transition: all 0.15s;
+  }
+
+  .btn-primary {
+    background: var(--red);
+    color: white;
+    flex: 1;
+  }
+
+  .btn-primary:hover { background: var(--red-dark); }
+
+  .btn-secondary {
+    background: var(--navy-light);
+    color: var(--white);
+  }
+
+  .btn-secondary:hover { background: #3a3a66; }
+
+  .btn-green {
+    background: var(--green);
+    color: white;
+  }
+
+  .btn-green:hover { background: #219a52; }
+  .btn-green:disabled { background: #1a4a2e; color: #4a8a5a; cursor: not-allowed; }
+
+  .btn-carousel {
+    background: #1a3a5c;
+    color: #4a9ede;
+    border: 1px solid #4a9ede;
+  }
+  .btn-carousel:hover { background: #2a5a8c; }
+  .btn-carousel:disabled { background: #0a1a2c; color: #2a4a6c; cursor: not-allowed; border-color: #2a4a6c; }
+
+  .carousel-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 12px;
+    background: var(--navy-light);
+    border-radius: 4px;
+    font-size: 12px;
+    font-family: 'DM Mono', monospace;
+    color: var(--white);
+  }
+
+  .carousel-item button {
+    background: none;
+    border: none;
+    color: var(--red);
+    cursor: pointer;
+    font-size: 14px;
+    padding: 0 4px;
+  }
+
+  /* Output panel */
+  .output-panel {
+    padding: 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .output-block {
+    background: var(--navy-mid);
+    border: 1px solid var(--navy-light);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  .output-block-header {
+    background: var(--navy-light);
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .output-block-title {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    color: var(--gold);
+    text-transform: uppercase;
+  }
+
+  .copy-btn {
+    background: none;
+    border: 1px solid var(--navy-mid);
+    border-radius: 3px;
+    color: var(--gray);
+    font-size: 11px;
+    font-family: 'DM Sans', sans-serif;
+    padding: 3px 10px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .copy-btn:hover { border-color: var(--gold); color: var(--gold); }
+  .copy-btn.copied { border-color: var(--green); color: var(--green); }
+
+  .output-content {
+    padding: 16px;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    line-height: 1.8;
+    color: var(--white);
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  /* Rankings table preview */
+  .rankings-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .rankings-table tr {
+    border-bottom: 1px solid var(--navy-light);
+  }
+
+  .rankings-table tr:last-child { border-bottom: none; }
+
+  .rankings-table td {
+    padding: 8px 16px;
+    font-size: 13px;
+  }
+
+  .rank-num {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 18px;
+    color: var(--red);
+    width: 36px;
+    text-align: center;
+  }
+
+  .rank-num.gold-rank { color: var(--gold); }
+
+  .rank-name { font-weight: 500; flex: 1; }
+  .rank-school { color: var(--gray); font-size: 12px; }
+  .rank-time {
+    font-family: 'DM Mono', monospace;
+    font-weight: 500;
+    color: var(--gold);
+    text-align: right;
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--gray);
+  }
+
+  .empty-icon {
+    font-size: 40px;
+    margin-bottom: 12px;
+    opacity: 0.4;
+  }
+
+  .empty-text {
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  .sheet-output {
+    padding: 16px;
+  }
+
+  .sheet-row {
+    display: grid;
+    grid-template-columns: 40px 1fr 1fr 100px;
+    gap: 8px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--navy-light);
+    font-size: 12px;
+    font-family: 'DM Mono', monospace;
+    align-items: center;
+  }
+
+  .sheet-row.header {
+    color: var(--gold);
+    font-size: 10px;
+    letter-spacing: 1px;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 600;
+  }
+
+  .sheet-row:last-child { border-bottom: none; }
+
+  .status-bar {
+    background: var(--navy-mid);
+    border-top: 1px solid var(--navy-light);
+    padding: 10px 28px;
+    font-size: 11px;
+    color: var(--gray);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    grid-column: 1 / -1;
+  }
+
+  .status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--gray);
+  }
+
+  .status-dot.active { background: var(--green); }
+
+  .hashtag-list {
+    padding: 14px 16px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .hashtag {
+    background: var(--navy-light);
+    border-radius: 3px;
+    padding: 4px 10px;
+    font-size: 12px;
+    font-family: 'DM Mono', monospace;
+    color: var(--gold);
+  }
+
+  .tabs {
+    display: flex;
+    border-bottom: 1px solid var(--navy-light);
+    margin-bottom: 0;
+  }
+
+  .tab {
+    padding: 10px 18px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    cursor: pointer;
+    color: var(--gray);
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s;
+    background: none;
+    border-top: none;
+    border-left: none;
+    border-right: none;
+    font-family: 'DM Sans', sans-serif;
+  }
+
+  .tab.active {
+    color: var(--gold);
+    border-bottom-color: var(--gold);
+  }
+
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-text">GL<span>RR</span></div>
+  <span class="tag">RESULTS FORMATTER</span>
+</header>
+
+<div style="display:grid; grid-template-columns: 1fr 1fr; min-height: calc(100vh - 67px);">
+
+  <!-- LEFT: Input -->
+  <div class="panel">
+    <div class="panel-title">Meet Info</div>
+
+    <div class="meta-grid">
+      <div class="field">
+        <label>Category</label>
+        <select id="category" onchange="updateStateConference()">
+          <option value="state">State (HS)</option>
+          <option value="conference">Conference (College)</option>
+          <option value="meet">Meet / Invitational</option>
+        </select>
+      </div>
+      <div class="field" id="state-field">
+        <label>State</label>
+        <select id="state" onchange="updateDivisions()">
+          <option value="Michigan">Michigan</option>
+          <option value="Ohio">Ohio</option>
+          <option value="Indiana">Indiana</option>
+          <option value="Illinois">Illinois</option>
+          <option value="Wisconsin">Wisconsin</option>
+          <option value="Minnesota">Minnesota</option>
+        </select>
+      </div>
+      <div class="field" id="conference-field" style="display:none;">
+        <label>Conference</label>
+        <select id="conference">
+          <optgroup label="NCAA D1">
+            <option value="big_ten">Big Ten</option>
+            <option value="mac">MAC</option>
+          </optgroup>
+          <optgroup label="NCAA D2">
+            <option value="gliac">GLIAC</option>
+            <option value="gmac">G-MAC</option>
+            <option value="glvc">GLVC</option>
+          </optgroup>
+          <optgroup label="NCAA D3">
+            <option value="miaa">MIAA</option>
+            <option value="cciw">CCIW</option>
+            <option value="oac">OAC</option>
+            <option value="hcac">HCAC</option>
+          </optgroup>
+          <optgroup label="NAIA">
+            <option value="crossroads_league">Crossroads League</option>
+            <option value="whac">WHAC</option>
+            <option value="ccac">CCAC</option>
+          </optgroup>
+        </select>
+      </div>
+      <div class="field" id="level-field">
+        <label>Level</label>
+        <select id="level" onchange="updateGender()">
+          <option value="HS">High School</option>
+          <option value="College">College</option>
+        </select>
+      </div>
+      <div class="field" id="division-field">
+        <label>Division</label>
+        <select id="division">
+          <option value="D1">D1</option>
+          <option value="D2">D2</option>
+          <option value="D3">D3</option>
+          <option value="D4">D4</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Gender</label>
+        <select id="gender">
+          <option value="Boys">Boys</option>
+          <option value="Girls">Girls</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Sport</label>
+        <select id="sport">
+          <option value="Outdoor Track">Outdoor Track</option>
+          <option value="Indoor Track">Indoor Track</option>
+          <option value="Cross Country">Cross Country</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Event</label>
+        <input type="text" id="event" placeholder="e.g. 4x800, Mile, 100m" />
+      </div>
+      <div class="field">
+        <label>Award Type</label>
+        <select id="awardtype">
+          <option value="All-State">All-State</option>
+          <option value="All-Conference">All-Conference</option>
+          <option value="All-American">All-American</option>
+          <option value="Rankings">Rankings</option>
+          <option value="Results">Results</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Event Type</label>
+        <select id="eventtype" onchange="updateEventType()">
+          <option value="individual">Individual</option>
+          <option value="relay">Relay</option>
+          <option value="team">Team</option>
+        </select>
+      </div>
+      <div class="field" id="scoring-field" style="display:none;">
+        <label>Scoring</label>
+        <select id="scoring">
+          <option value="points">Points (Track — higher is better)</option>
+          <option value="score">Score (XC — lower is better)</option>
+        </select>
+      </div>
+      <div class="field" style="grid-column: 1 / -1;">
+        <label>Meet Name (optional override)</label>
+        <input type="text" id="meetname" placeholder="e.g. MHSAA State Finals" />
+      </div>
+    </div>
+
+    <div class="panel-title" style="margin-top: 8px;">Paste Results</div>
+
+    <label class="paste-label">Raw results from athletic.net</label>
+    <textarea id="rawInput" placeholder="Paste results here. Works with most formats:
+
+1. John Smith - Rockford  10.45
+2. Mike Johnson - East Lansing  10.51
+3. Tyler Brown - Grand Haven  10.58
+
+Or just lines of text — the tool will parse names, schools, and times automatically."></textarea>
+
+    <p class="hint">💡 Tip: Copy the results table directly from athletic.net and paste here. The tool handles messy formatting.</p>
+
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="processResults()">⚡ FORMAT RESULTS</button>
+      <button class="btn btn-green" onclick="generateGraphic()" id="gen-btn" disabled>🖼 GENERATE GRAPHIC</button>
+      <button class="btn btn-carousel" onclick="addToCarousel()" id="carousel-btn" disabled>➕ ADD TO CAROUSEL</button>
+      <button class="btn btn-secondary" onclick="clearAll()">CLEAR</button>
+    </div>
+  </div>
+
+  <!-- RIGHT: Output -->
+  <div class="output-panel">
+
+    <!-- Rankings Preview -->
+    <div class="output-block">
+      <div class="output-block-header">
+        <span class="output-block-title">Rankings Preview</span>
+        <button class="copy-btn" onclick="copySection('rankings-data', this)">Copy</button>
+      </div>
+      <div id="rankings-preview">
+        <div class="empty-state">
+          <div class="empty-icon">🏃</div>
+          <div class="empty-text">Paste results and hit Format<br>to see your top 10 here</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Caption + Hashtags tabs -->
+    <div class="output-block">
+      <div class="tabs">
+        <button class="tab active" onclick="switchTab('caption', this)">Caption</button>
+        <button class="tab" onclick="switchTab('hashtags', this)">Hashtags</button>
+        <button class="tab" onclick="switchTab('sheets', this)">Sheets Export</button>
+      </div>
+
+      <div class="tab-content active" id="tab-caption">
+        <div class="output-block-header" style="background:none; border-top: 1px solid var(--navy-light);">
+          <span class="output-block-title">Instagram Caption</span>
+          <button class="copy-btn" onclick="copySection('caption-text', this)">Copy</button>
+        </div>
+        <div class="output-content" id="caption-text">Fill out the form and paste your results to generate a caption.</div>
+      </div>
+
+      <div class="tab-content" id="tab-hashtags">
+        <div class="output-block-header" style="background:none; border-top: 1px solid var(--navy-light);">
+          <span class="output-block-title">Hashtag Bank</span>
+          <button class="copy-btn" onclick="copyHashtags(this)">Copy All</button>
+        </div>
+        <div class="hashtag-list" id="hashtag-list">
+          <span style="color: var(--gray); font-size: 12px; padding: 8px 0;">Generate results to see hashtags.</span>
+        </div>
+      </div>
+
+      <div class="tab-content" id="tab-sheets">
+        <div class="output-block-header" style="background:none; border-top: 1px solid var(--navy-light);">
+          <span class="output-block-title">Google Sheets Format</span>
+          <button class="copy-btn" onclick="copySection('sheets-data', this)">Copy TSV</button>
+        </div>
+        <div class="sheet-output" id="sheets-data">
+          <div style="color: var(--gray); font-size: 12px; padding: 8px 0;">Generate results to export to Sheets.</div>
+        </div>
+      </div>
+    </div>
+
+  <!-- Carousel Builder -->
+  <div class="output-block" id="carousel-block" style="display:none;">
+    <div class="output-block-header">
+      <span class="output-block-title">Carousel Builder</span>
+      <div style="display:flex; gap:8px;">
+        <span id="carousel-count" style="color:var(--gray); font-size:11px; padding:3px 8px;">0 slides</span>
+        <button class="copy-btn" onclick="generateCarousel()" id="carousel-gen-btn">⬇ Export All</button>
+        <button class="copy-btn" onclick="clearCarousel()" style="color:var(--red);">Clear</button>
+      </div>
+    </div>
+    <div id="carousel-list" style="padding:12px; display:flex; flex-direction:column; gap:6px;">
+    </div>
+  </div>
+
+  </div>
+</div>
+
+<script>
+  let parsedResults = [];
+
+  function switchTab(name, el) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    el.classList.add('active');
+    document.getElementById('tab-' + name).classList.add('active');
+  }
+
+  function parseResults(raw) {
+    const pbPattern       = /\s*(PB|SB|PR|SR|NR|AR|WR|MR)\b/gi;
+    const markPattern     = /\b(\d{1,3}'\s*\d{1,2}(?:\.\d+)?"|\d{1,2}\.\d{2}m|\d{1,3}-\d{1,2}(?:\.\d+)?)/;
+    const metricMarkPattern = /\b(\d{1,2}\.\d{2}m)\b/;  // field events in meters e.g. 19.27m
+    const timePattern     = /\b(\d{0,2}:?\d{1,2}:\d{2}\.\d{1,3}[a-zA-Z]?|\d{1,2}:\d{2}\.\d{1,3}[a-zA-Z]?|\d{1,2}\.\d{2,3}[a-zA-Z]?)\b/;
+    const windPattern     = /\([-+]?\d*\.?\d+(\s*m\/s)?\)|\(NWI\)/gi;
+    const rankLinePattern = /^(\d{1,2})\.?\s*$/;  // rank is alone on its own line in relay format
+    const gradePattern    = /^(6|7|8|9|10|11|12)$/;        // grade alone on its own line
+    const skipPattern     = /^(place|rank|#|athlete|name|school|time|mark|result)/i;
+    const inlineRankPattern = /^(\d{1,2})[.\t\s]/; // rank inline with name (individual format)
+
+    const lines = raw.split('\n').map(l => l.trim());
+    const results = [];
+
+    // ── Detect format ─────────────────────────────────────────────────────────
+    let relayFormat = false;
+    let teamFormat  = false;
+
+    // Check if eventtype is team — use simple rank+school+score format
+    try {
+      const et = document.getElementById('eventtype');
+      if (et && et.value === 'team') teamFormat = true;
+    } catch(e) {}
+
+    if (!teamFormat) {
+      for (let i = 0; i < Math.min(lines.length, 20); i++) {
+        if (rankLinePattern.test(lines[i]) && lines[i+1] && gradePattern.test(lines[i+1])) {
+          relayFormat = true;
+          break;
+        }
+      }
+    }
+
+    if (teamFormat) {
+      // ── TEAM PARSER ───────────────────────────────────────────────────────
+      // Formats supported:
+      //   "1. School Name  63"                        (school + score)
+      //   "1. School Name  63  De-Mani Roberts"       (track: + top scorer)
+      //   "1. School Name  47  3, 8, 12, 19, 24"      (xc: + scoring places)
+      // Strategy: rank first, then the FIRST standalone integer is the score.
+      // Everything before it = school, everything after it = extra info.
+      let i = 0;
+      while (i < lines.length) {
+        const line = lines[i];
+        if (!line || skipPattern.test(line)) { i++; continue; }
+        const rankMatch = line.match(inlineRankPattern);
+        if (!rankMatch) { i++; continue; }
+        const rank = parseInt(rankMatch[1]);
+
+        let remainder = line.replace(inlineRankPattern, '').replace(/\t/g, ' ').trim();
+        const parts = remainder.split(/\s+/);
+
+        // Find the first token that is a pure integer — that's the team score
+        let scoreIdx = -1;
+        for (let k = 0; k < parts.length; k++) {
+          if (/^\d+$/.test(parts[k])) { scoreIdx = k; break; }
+        }
+
+        let score = '', schoolName = remainder, extra = '';
+        if (scoreIdx >= 0) {
+          score      = parts[scoreIdx];
+          schoolName = parts.slice(0, scoreIdx).join(' ').trim();
+          extra      = parts.slice(scoreIdx + 1).join(' ').trim();
+        }
+
+        // If score wasn't found on this line, check the next line
+        let advanced = false;
+        if (scoreIdx === -1) {
+          let j = i + 1;
+          while (j < lines.length && lines[j].trim() === '') j++;
+          if (j < lines.length && /^\d+/.test(lines[j].trim())) {
+            const nextParts = lines[j].trim().split(/\s+/);
+            score = nextParts[0];
+            extra = nextParts.slice(1).join(' ').trim();
+            i = j + 1;
+            advanced = true;
+          }
+        }
+        if (!advanced) i++;
+
+        if (schoolName.length > 1) {
+          // store extra scorer info in the school field; fill_template formats it
+          results.push({ rank, name: schoolName, school: extra, time: score });
+        }
+      }
+
+    } else if (relayFormat) {
+      // ── RELAY PARSER ──────────────────────────────────────────────────────
+      let i = 0;
+      while (i < lines.length) {
+        const line = lines[i];
+        if (!line || skipPattern.test(line)) { i++; continue; }
+
+        // Look for a standalone rank number
+        if (!rankLinePattern.test(line)) { i++; continue; }
+        const rank = parseInt(line);
+
+        i++; // move past rank line
+
+        // Collect all tokens until we hit the time line
+        const athletes = [];
+        let time = '';
+        let school = '';
+
+        while (i < lines.length) {
+          const cur = lines[i].trim();
+          if (!cur) { i++; continue; }
+
+          // Time line — marks end of athlete list
+          const timeMatch = cur.match(timePattern);
+          if (timeMatch && cur.replace(timePattern, '').replace(/[a-zA-Z\s]/g,'').length === 0) {
+            time = timeMatch[1].replace(/[a-zA-Z]$/, '');
+            i++;
+            break;
+          }
+
+          // Grade line — skip
+          if (gradePattern.test(cur)) { i++; continue; }
+
+          // Next rank — stop, don't consume
+          if (rankLinePattern.test(cur)) break;
+
+          // Must be an athlete name
+          athletes.push(cur.replace(/\.{2,}$/, '').trim());
+          i++;
+        }
+
+        // Next non-blank line after time is the school
+        while (i < lines.length && lines[i].trim() === '') i++;
+        if (i < lines.length) {
+          const nextLine = lines[i].trim();
+          if (!rankLinePattern.test(nextLine) && !skipPattern.test(nextLine) && nextLine.length > 1) {
+            school = nextLine.replace(/\.{2,}$/, '').trim();
+            i++;
+          }
+        }
+
+        // For relays: name field shows the team members, school is the team name
+        const teamName = school || athletes[0] || '';
+        const memberList = athletes.join(', ');
+
+        if (teamName.length > 1) {
+          results.push({ rank, name: teamName, school: memberList, time });
+        }
+      }
+
+    } else {
+      // ── INDIVIDUAL PARSER ─────────────────────────────────────────────────
+      let i = 0;
+      while (i < lines.length) {
+        const line = lines[i];
+        if (!line || skipPattern.test(line)) { i++; continue; }
+
+        const rankMatch = line.match(inlineRankPattern);
+        if (!rankMatch) { i++; continue; }
+
+        const rank = parseInt(rankMatch[1]);
+
+        // Strip PB/SB before parsing
+        const cleanLine = line.replace(pbPattern, '');
+
+        // Field mark (feet-inches) takes priority over time
+        const markMatch = cleanLine.match(markPattern);
+        const timeMatch = cleanLine.match(timePattern);
+        let time = '';
+        if (markMatch) {
+          time = markMatch[1].trim();
+        } else if (timeMatch) {
+          time = timeMatch[1].replace(/[a-zA-Z]$/, '');
+        }
+
+        let namePart = cleanLine
+          .replace(inlineRankPattern, '')
+          .replace(windPattern, '')
+          .replace(markPattern, '')
+          .replace(timePattern, '')
+          .replace(/\b(6|7|8|9|10|11|12)\b/, '')
+          .replace(/\t/g, ' ')
+          .replace(/\s{2,}/g, ' ')
+          .replace(/\.{2,}$/, '')
+          .trim();
+
+        let school = '';
+        let j = i + 1;
+        while (j < lines.length && lines[j].trim() === '') j++;
+
+        if (j < lines.length) {
+          const nextLine = lines[j].trim();
+          if (!inlineRankPattern.test(nextLine) && !skipPattern.test(nextLine) && nextLine.length > 1) {
+            school = nextLine.replace(/\.{2,}$/, '').trim();
+            i = j + 1;
+          } else {
+            i++;
+          }
+        } else {
+          i++;
+        }
+
+        if (namePart.length > 1) {
+          results.push({ rank, name: namePart, school, time });
+        }
+      }
+    }
+
+    results.sort((a, b) => a.rank - b.rank);
+    const max = (typeof getMaxResults === "function") ? getMaxResults() : 8;
+    return results.slice(0, max);
+  }
+
+  function processResults() {
+    const raw = document.getElementById('rawInput').value;
+    if (!raw.trim()) {
+      alert('Paste some results first!');
+      return;
+    }
+
+    parsedResults = parseResults(raw);
+
+    if (parsedResults.length === 0) {
+      alert('Could not parse any results. Try formatting as: "1. Name - School  Time"');
+      return;
+    }
+
+    renderRankings();
+    renderCaption();
+    renderHashtags();
+    renderSheets();
+    document.getElementById('gen-btn').disabled = false;
+    document.getElementById('carousel-btn').disabled = false;
+  }
+
+  function getMeta() {
+    const category = document.getElementById('category').value;
+    const isConference = category === 'conference';
+    const isMeet = category === 'meet';
+    return {
+      category:   category,
+      state:      (isConference || isMeet) ? '' : document.getElementById('state').value,
+      conference: isConference ? document.getElementById('conference').value : '',
+      level:      isConference ? 'College' : document.getElementById('level').value,
+      division:   document.getElementById('division').value,
+      gender:     document.getElementById('gender').value,
+      sport:      document.getElementById('sport').value,
+      event:      document.getElementById('event').value || 'Event',
+      meetname:   document.getElementById('meetname').value,
+      awardtype:  document.getElementById('awardtype').value,
+      eventtype:  document.getElementById('eventtype').value,
+      scoring:    document.getElementById('scoring') ? document.getElementById('scoring').value : 'points'
+    };
+  }
+
+  function getMaxResults() {
+    const m = getMeta();
+    const nineStates = ['Illinois', 'Indiana', 'Minnesota'];
+    if (nineStates.includes(m.state)) return 9;
+    return 8;
+  }
+
+  const STATE_DIVISIONS = {
+    'Michigan':   ['D1','D2','D3','D4'],
+    'Ohio':       ['D1','D2','D3','D4','D5'],
+    'Indiana':    ['Open'],
+    'Illinois':   ['1A','2A','3A'],
+    'Wisconsin':  ['D1','D2','D3'],
+    'Minnesota':  ['AAA','AA','A'],
+  };
+
+  function updateDivisions() {
+    const state    = document.getElementById('state').value;
+    const category = document.getElementById('category').value;
+    const divField = document.getElementById('division-field');
+    const divSel   = document.getElementById('division');
+
+    if (category === 'meet') {
+      // Invitationals/meets aren't divisional — hide it
+      divField.style.display = 'none';
+      divSel.innerHTML = '<option value="">—</option>';
+      return;
+    }
+
+    if (category === 'conference') {
+      // Conferences use NCAA divisions
+      divField.style.display = '';
+      divSel.innerHTML = ['D1','D2','D3','NAIA'].map(d =>
+        `<option value="${d}">${d}</option>`).join('');
+      return;
+    }
+
+    const divisions = STATE_DIVISIONS[state] || ['D1'];
+
+    if (divisions.length === 1 && divisions[0] === 'Open') {
+      // Indiana — no divisions
+      divField.style.display = 'none';
+      divSel.innerHTML = '<option value="Open">Open</option>';
+    } else {
+      divField.style.display = '';
+      divSel.innerHTML = divisions.map(d =>
+        `<option value="${d}">${d}</option>`).join('');
+    }
+  }
+
+  function updateStateConference() {
+    const category = document.getElementById('category').value;
+    const isConference = category === 'conference';
+    const isMeet = category === 'meet';
+    // State dropdown only for state category
+    document.getElementById('state-field').style.display      = (isConference || isMeet) ? 'none' : '';
+    // Conference dropdown only for conference category
+    document.getElementById('conference-field').style.display  = isConference ? '' : 'none';
+    // Level (HS/College) hidden for conference (always college) and meet (use meet name)
+    document.getElementById('level-field').style.display      = (isConference || isMeet) ? 'none' : '';
+    updateDivisions();
+    updateGender();
+  }
+
+  function updateEventType() {
+    const et = document.getElementById('eventtype').value;
+    const scoringField = document.getElementById('scoring-field');
+    scoringField.style.display = (et === 'team') ? '' : 'none';
+  }
+
+  function updateGender() {
+    const category = document.getElementById('category').value;
+    const level    = document.getElementById('level') ? document.getElementById('level').value : 'HS';
+    const isCollege = category === 'conference' || level === 'College';
+    const genderSel = document.getElementById('gender');
+    const current   = genderSel.value;
+
+    if (isCollege) {
+      genderSel.innerHTML = [
+        ['Mens', "Men's"],
+        ['Womens', "Women's"]
+      ].map(([v,l]) => `<option value="${v}">${l}</option>`).join('');
+    } else {
+      genderSel.innerHTML = [
+        ['Boys', 'Boys'],
+        ['Girls', 'Girls']
+      ].map(([v,l]) => `<option value="${v}">${l}</option>`).join('');
+    }
+  }
+
+  function renderRankings() {
+    const m = getMeta();
+    const isTeam = m.eventtype === 'team';
+    const container = document.getElementById('rankings-preview');
+    if (parsedResults.length === 0) return;
+
+    let html = '<table class="rankings-table">';
+    for (let r of parsedResults) {
+      html += `
+        <tr>
+          <td class="rank-num ${r.rank === 1 ? 'gold-rank' : ''}">${r.rank}</td>
+          <td>
+            <div class="rank-name">${r.name}</div>
+            ${r.school ? `<div class="rank-school">${r.school}</div>` : ''}
+          </td>
+          <td class="rank-time">${r.time}</td>
+        </tr>`;
+    }
+    html += '</table>';
+
+    container.innerHTML = html;
+
+    // Store copy text in a stable hidden element
+    let copyStore = document.getElementById('rankings-data');
+    if (!copyStore) {
+      copyStore = document.createElement('span');
+      copyStore.id = 'rankings-data';
+      copyStore.style.display = 'none';
+      document.body.appendChild(copyStore);
+    }
+    copyStore.setAttribute('data-copy', parsedResults.map(r =>
+      `${r.rank}. ${r.name}${r.school ? ' - ' + r.school : ''}${r.time ? '  ' + r.time : ''}`
+    ).join('\n'));
+  }
+
+  function renderCaption() {
+    const m = getMeta();
+    const year = new Date().getFullYear();
+    const confNames = {
+      big_ten: 'Big Ten', mac: 'MAC', gliac: 'GLIAC', gmac: 'G-MAC', glvc: 'GLVC',
+      miaa: 'MIAA', cciw: 'CCIW', oac: 'OAC', hcac: 'HCAC',
+      crossroads_league: 'Crossroads League', whac: 'WHAC', ccac: 'CCAC'
+    };
+    const stateAssoc = {
+      Michigan: 'MHSAA', Ohio: 'OHSAA', Indiana: 'IHSAA',
+      Illinois: 'IHSA', Wisconsin: 'WIAA', Minnesota: 'MSHSL'
+    };
+    const meetName = m.meetname || (
+      m.category === 'conference'
+        ? `${confNames[m.conference] || m.conference} ${m.sport} Championships`
+      : m.category === 'meet'
+        ? `${m.sport} Meet`
+        : `${m.state} ${m.level === 'HS' ? (stateAssoc[m.state] || 'State') : 'State'} ${m.sport} ${m.division} Finals`);
+    const winner = parsedResults[0];
+
+    let caption = `🏆 ${year} ${meetName} — ${m.gender} ${m.event} ${m.awardtype}\n\n`;
+
+    for (let r of parsedResults) {
+      const medal = r.rank === 1 ? '🥇' : r.rank === 2 ? '🥈' : r.rank === 3 ? '🥉' : `${r.rank}.`;
+      caption += `${medal} ${r.name}${r.school ? ` — ${r.school}` : ''}${r.time ? `  ${r.time}` : ''}\n`;
+    }
+
+    caption += `\nCongratulations to all ${year} All-State athletes! 👏\n`;
+    caption += `\nFollow @glrr for Great Lakes XC & Track rankings all season long 🌊\n`;
+    caption += `📍 MI • OH • IN • IL • WI | HS + College`;
+
+    document.getElementById('caption-text').textContent = caption;
+  }
+
+  function renderHashtags() {
+    const m = getMeta();
+    const stateAbbr = {Michigan:'MI', Ohio:'OH', Indiana:'IN', Illinois:'IL', Wisconsin:'WI'}[m.state] || m.state;
+    const year = new Date().getFullYear();
+
+    const tags = [
+      `#${m.state.replace(' ','')}XC`,
+      `#${m.state.replace(' ','')}Track`,
+      `#${stateAbbr}Track`,
+      `#${stateAbbr}XC`,
+      `#GreatLakesRunning`,
+      `#MidwestTrack`,
+      `#HighSchoolTrack`,
+      `#HSTrackAndField`,
+      `#AllState${year}`,
+      `#TrackAndField`,
+      `#CrossCountry`,
+      `#RunningCommunity`,
+      `#MHSAA`,
+      `#GLRunRankings`,
+      `#MidwestRunning`,
+      `#HSRunners`,
+    ];
+
+    // Add event-specific
+    const event = document.getElementById('event').value.toLowerCase();
+    if (event.includes('4x8') || event.includes('4x800')) tags.push('#4x800', '#RelayRace');
+    if (event.includes('mile')) tags.push('#MileRun', '#TheMile');
+    if (event.includes('100')) tags.push('#Sprints', '#100m');
+    if (event.includes('200')) tags.push('#200m', '#Sprints');
+    if (event.includes('400')) tags.push('#400m');
+    if (event.includes('800')) tags.push('#800m', '#MiddleDistance');
+    if (event.includes('1600') || event.includes('1 mile')) tags.push('#1600m', '#MileRun');
+    if (event.includes('3200') || event.includes('2 mile')) tags.push('#3200m', '#DistanceRunning');
+    if (event.includes('hurdle')) tags.push('#Hurdles');
+    if (event.includes('shot') || event.includes('discus') || event.includes('jav')) tags.push('#ThrowsTraining');
+    if (event.includes('high jump') || event.includes('long jump') || event.includes('triple')) tags.push('#TrackJumps');
+
+    const container = document.getElementById('hashtag-list');
+    container.innerHTML = tags.map(t => `<span class="hashtag">${t}</span>`).join('');
+    container.setAttribute('data-tags', tags.join(' '));
+  }
+
+  function renderSheets() {
+    const m = getMeta();
+    const year = new Date().getFullYear();
+    const container = document.getElementById('sheets-data');
+
+    let html = `
+      <div class="sheet-row header">
+        <span>RANK</span><span>NAME</span><span>SCHOOL</span><span>TIME</span>
+      </div>`;
+
+    // TSV for actual copy-paste into sheets
+    let tsv = `Rank\tName\tSchool\tTime\tState\tDivision\tGender\tEvent\tYear\n`;
+
+    for (let r of parsedResults) {
+      html += `
+        <div class="sheet-row">
+          <span>${r.rank}</span>
+          <span>${r.name}</span>
+          <span>${r.school}</span>
+          <span>${r.time}</span>
+        </div>`;
+      tsv += `${r.rank}\t${r.name}\t${r.school}\t${r.time}\t${m.state}\t${m.division}\t${m.gender}\t${m.event}\t${year}\n`;
+    }
+
+    container.innerHTML = html;
+    container.setAttribute('data-tsv', tsv);
+  }
+
+  function copySection(id, btn) {
+    const el = document.getElementById(id);
+    let text = '';
+
+    if (id === 'rankings-data') {
+      text = el.getAttribute('data-copy') || el.innerText;
+    } else if (id === 'sheets-data') {
+      text = el.getAttribute('data-tsv') || el.innerText;
+    } else {
+      text = el.textContent;
+    }
+
+    navigator.clipboard.writeText(text).then(() => {
+      btn.textContent = '✓ Copied!';
+      btn.classList.add('copied');
+      setTimeout(() => {
+        btn.textContent = 'Copy';
+        btn.classList.remove('copied');
+      }, 2000);
+    });
+  }
+
+  function copyHashtags(btn) {
+    const el = document.getElementById('hashtag-list');
+    const tags = el.getAttribute('data-tags') || '';
+    navigator.clipboard.writeText(tags).then(() => {
+      btn.textContent = '✓ Copied!';
+      btn.classList.add('copied');
+      setTimeout(() => {
+        btn.textContent = 'Copy All';
+        btn.classList.remove('copied');
+      }, 2000);
+    });
+  }
+
+  function clearAll() {
+    document.getElementById('rawInput').value = '';
+    document.getElementById('event').value = '';
+    document.getElementById('meetname').value = '';
+    document.getElementById('rankings-preview').innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">🏃</div>
+        <div class="empty-text">Paste results and hit Format<br>to see your top 10 here</div>
+      </div>`;
+    document.getElementById('caption-text').textContent = 'Fill out the form and paste your results to generate a caption.';
+    document.getElementById('hashtag-list').innerHTML = '<span style="color: var(--gray); font-size: 12px; padding: 8px 0;">Generate results to see hashtags.</span>';
+    document.getElementById('sheets-data').innerHTML = '<div style="color: var(--gray); font-size: 12px; padding: 8px 0;">Generate results to export to Sheets.</div>';
+    parsedResults = [];
+  }
+  // ── Carousel state ─────────────────────────────────────────────────────
+  let carouselSlides = [];
+
+  function addToCarousel() {
+    if (parsedResults.length === 0) return;
+    const m = getMeta();
+    const isRelay = m.eventtype === 'relay';
+    const slide = {
+      sport:       m.sport,
+      division:    m.division,
+      meet:        m.meetname || (m.category === 'meet' ? 'Meet' : m.category === 'conference' ? 'Championships' : 'MHSAA State'),
+      gender:      m.gender,
+      event:       m.event,
+      type:        m.awardtype,
+      is_relay:    isRelay,
+      eventtype:   m.eventtype,
+      scoring:     m.scoring,
+      category:    m.category,
+      state:       m.state,
+      conference:  m.conference,
+      max_results: getMaxResults(),
+      results:     parsedResults.map(r => ({ rank: r.rank, name: r.name, school: r.school, time: r.time }))
+    };
+
+    carouselSlides.push(slide);
+    renderCarouselList();
+
+    // Clear input for next event
+    document.getElementById('rawInput').value = '';
+    document.getElementById('event').value = '';
+    parsedResults = [];
+    document.getElementById('gen-btn').disabled = true;
+    document.getElementById('carousel-btn').disabled = true;
+    document.getElementById('rankings-preview').innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">🏃</div>
+        <div class="empty-text">Added! Paste next event results.</div>
+      </div>`;
+  }
+
+  function renderCarouselList() {
+    const list = document.getElementById('carousel-list');
+    const block = document.getElementById('carousel-block');
+    const count = document.getElementById('carousel-count');
+    block.style.display = carouselSlides.length > 0 ? '' : 'none';
+    count.textContent = carouselSlides.length + ' slides';
+    list.innerHTML = carouselSlides.map((s, i) => `
+      <div class="carousel-item">
+        <span>${i+1}. ${s.gender} ${s.event} — ${s.division}</span>
+        <button onclick="removeSlide(${i})">✕</button>
+      </div>`).join('');
+
+    // Show export button
+    document.getElementById('carousel-gen-btn').textContent = '⬇ Export All ' + carouselSlides.length + ' PNGs';
+  }
+
+  function removeSlide(idx) {
+    carouselSlides.splice(idx, 1);
+    renderCarouselList();
+  }
+
+  function clearCarousel() {
+    carouselSlides = [];
+    renderCarouselList();
+  }
+
+  async function generateCarousel() {
+    if (carouselSlides.length === 0) return;
+    const btn = document.getElementById('carousel-gen-btn');
+    btn.textContent = '⏳ Generating...';
+
+    try {
+      const res = await fetch('/generate_carousel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slides: carouselSlides })
+      });
+      const data = await res.json();
+      if (data.success) {
+        // Show download links for each PNG
+        const list = document.getElementById('carousel-list');
+        list.innerHTML = data.files.map((f, i) => `
+          <div class="carousel-item">
+            <span>${i+1}. ${f.label}</span>
+            <a href="/download/${f.png}" download="${f.png}"
+               style="color:#27ae60; font-size:11px; text-decoration:none;">⬇ PNG</a>
+          </div>`).join('');
+        btn.textContent = '✓ Done! Download above';
+      } else {
+        btn.textContent = '✗ Error: ' + data.error;
+      }
+    } catch(e) {
+      btn.textContent = '✗ Failed';
+      console.error(e);
+    }
+  }
+
+  async function generateGraphic() {
+    const m = getMeta();
+    const btn = document.getElementById('gen-btn');
+    btn.textContent = '⏳ GENERATING...';
+    btn.disabled = true;
+
+    const isRelay = m.eventtype === 'relay';
+    const confNames = {
+      big_ten: 'Big Ten', mac: 'MAC', gliac: 'GLIAC', gmac: 'G-MAC', glvc: 'GLVC',
+      miaa: 'MIAA', cciw: 'CCIW', oac: 'OAC', hcac: 'HCAC',
+      crossroads_league: 'Crossroads League', whac: 'WHAC', ccac: 'CCAC'
+    };
+    const payload = {
+      sport:      m.sport,
+      division:   m.division,
+      meet:       m.meetname || (m.category === 'conference'
+                    ? (confNames[m.conference] || m.conference) + ' Championships'
+                    : 'MHSAA State'),
+      gender:     m.gender,
+      event:      m.event,
+      type:       m.awardtype,
+      is_relay:   isRelay,
+      eventtype:  m.eventtype,
+      category:   m.category,
+      state:      m.state,
+      conference: m.conference,
+      scoring:    m.scoring,
+      max_results: getMaxResults(),
+      results:    parsedResults.map(r => ({
+        rank:   r.rank,
+        name:   r.name,
+        school: r.school,
+        time:   r.time
+      }))
+    };
+
+    try {
+      const res = await fetch('/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (data.success) {
+        btn.textContent = '✓ SAVED: ' + data.filename;
+        btn.style.background = '#27ae60';
+
+        // Show PNG download link if available
+        if (data.png) {
+          let dlRow = document.getElementById('dl-row');
+          if (!dlRow) {
+            dlRow = document.createElement('div');
+            dlRow.id = 'dl-row';
+            dlRow.style.cssText = 'margin-top:10px; display:flex; gap:8px;';
+            btn.parentNode.appendChild(dlRow);
+          }
+          dlRow.innerHTML = `
+            <a href="/download/${data.png}" download="${data.png}"
+               style="flex:1; padding:10px; background:#1a4a2e; color:#27ae60; border:1px solid #27ae60;
+                      border-radius:4px; text-align:center; font-family:Bebas Neue,sans-serif;
+                      font-size:15px; letter-spacing:1px; text-decoration:none;">
+              ⬇ DOWNLOAD PNG
+            </a>
+            <a href="/download/${data.filename}" download="${data.filename}"
+               style="flex:1; padding:10px; background:#1a1a2e; color:#8888aa; border:1px solid #2e2e55;
+                      border-radius:4px; text-align:center; font-family:Bebas Neue,sans-serif;
+                      font-size:15px; letter-spacing:1px; text-decoration:none;">
+              ⬇ DOWNLOAD PPTX
+            </a>`;
+        }
+
+        setTimeout(() => {
+          btn.textContent = '🖼 GENERATE GRAPHIC';
+          btn.disabled = false;
+          btn.style.background = '';
+        }, 4000);
+      } else {
+        btn.textContent = '✗ ERROR';
+        btn.disabled = false;
+        console.error(data.error);
+      }
+    } catch(e) {
+      btn.textContent = '✗ FAILED';
+      btn.disabled = false;
+      console.error(e);
+    }
+  }
+
+</script>
+</body>
+</html>

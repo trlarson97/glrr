@@ -1,0 +1,15 @@
+# Netlify configuration for the GLRR graphic generator.
+#
+# Phase 1 (now): static site — serves index.html + parser.js + school_utils.js + schools.json.
+# Phase 2 (auto-fetch): a serverless function under netlify/functions/ will pull athletic.net
+#   server-side (browsers can't, due to CORS). That config will be added when the function lands.
+
+[build]
+  publish = "."
+  # functions = "netlify/functions"   # <- uncommented in Phase 2
+
+# Nice URL for the future fetch helper: /api/athletic -> the serverless function
+# [[redirects]]
+#   from = "/api/*"
+#   to   = "/.netlify/functions/:splat"
+#   status = 200

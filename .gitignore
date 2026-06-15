@@ -1,0 +1,14 @@
+# Generated graphic outputs (old PPTX->PNG pipeline)
+output_*.pptx
+output_*.png
+carousel_*.pptx
+carousel_*.png
+
+# Python
+__pycache__/
+*.pyc
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+.claude/

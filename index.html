@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GLRR Graphic Generator</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="school_utils.js"></script>
+<script src="parser.js"></script>
+
+<style>
+  :root {
+    --red:   #c0392b;
+    --gold:  #e8c840;
+    --white: #f5f5f0;
+    --navy:  #15181c;
+    --gray:  #8a8f98;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0c0e11;
+    color: var(--white);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    padding: 16px;
+    max-width: 760px;
+    margin: 0 auto;
+  }
+
+  h1 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 26px;
+    letter-spacing: 2px;
+    font-weight: 400;
+    margin-bottom: 4px;
+  }
+  h1 span { color: var(--red); }
+  .sub { font-size: 12px; color: var(--gray); margin-bottom: 18px; }
+
+  .panel-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 15px; letter-spacing: 2px; color: var(--gold);
+    margin: 18px 0 10px;
+  }
+
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  .field.full { grid-column: 1 / -1; }
+  .field label {
+    font-size: 10px; font-weight: 600; letter-spacing: 1.5px;
+    color: var(--gray); text-transform: uppercase;
+  }
+  select, input, textarea {
+    background: #1b1f25; border: 1px solid #2e3440; border-radius: 5px;
+    color: var(--white); font-family: 'DM Sans', sans-serif; font-size: 14px;
+    padding: 10px 12px; outline: none;
+  }
+  select:focus, input:focus, textarea:focus { border-color: var(--gold); }
+  textarea {
+    width: 100%; min-height: 150px; font-family: 'DM Mono', monospace;
+    font-size: 12px; line-height: 1.6; resize: vertical; margin-top: 6px;
+  }
+
+  .btn-row { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+  .btn {
+    flex: 1; min-width: 140px; padding: 13px 18px; border: none; border-radius: 6px;
+    font-family: 'Bebas Neue', sans-serif; font-size: 18px; letter-spacing: 1.5px;
+    cursor: pointer; transition: background .15s, opacity .15s;
+  }
+  .btn-primary { background: var(--red); color: #fff; }
+  .btn-primary:hover { background: #a93226; }
+  .btn-dl { background: #2ecc71; color: #08210f; }
+  .btn-dl:hover { background: #27ae60; }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+
+  .msg { font-size: 12px; color: var(--gray); margin-top: 10px; line-height: 1.6; }
+  .msg.err { color: #e87b6b; }
+
+  /* ── Preview stage (scaled to fit width) ─────────────────────────────── */
+  .stage-holder {
+    margin: 14px auto 0;
+    overflow: hidden;
+    border-radius: 8px;
+    box-shadow: 0 14px 40px rgba(0,0,0,.6);
+    width: 100%;
+  }
+  .stage { transform-origin: top left; }
+
+  /* result image for mobile long-press save */
+  #resultImg { width: 100%; border-radius: 8px; margin-top: 12px; display: none; }
+  .save-hint { font-size: 12px; color: var(--gold); margin-top: 8px; display: none; }
+
+  /* ── THE CARD (1080 x 1350) — same design as preview_graphic.html ─────── */
+  .card {
+    position: relative; width: 1080px; height: 1350px; overflow: hidden;
+    background: linear-gradient(135deg, #1b1f25 0%, #15181c 45%, #0f1114 100%);
+    color: var(--white); font-family: 'DM Sans', sans-serif;
+  }
+  .card .photo {
+    position: absolute; inset: 0;
+    background-image:
+      radial-gradient(circle at 75% 18%, rgba(192,57,43,.20), transparent 42%),
+      radial-gradient(circle at 18% 88%, rgba(232,200,64,.10), transparent 45%),
+      repeating-linear-gradient(115deg, rgba(255,255,255,.018) 0 2px, transparent 2px 22px);
+    background-size: cover; background-position: center;
+  }
+  .card .overlay {
+    position: absolute; inset: 0;
+    background: linear-gradient(180deg, rgba(13,15,18,.55) 0%, rgba(13,15,18,.30) 35%, rgba(13,15,18,.80) 100%);
+  }
+  .card .content {
+    position: relative; z-index: 2; height: 100%;
+    padding: 60px 64px 56px; display: flex; flex-direction: column;
+  }
+  .run-watermark {
+    position: absolute; top: 150px; right: 26px; z-index: 1;
+    font-family: 'Bebas Neue', sans-serif; font-size: 150px; line-height: 1;
+    letter-spacing: 14px; color: var(--white); opacity: 0.055;
+    transform: rotate(90deg); transform-origin: top right; white-space: nowrap; pointer-events: none;
+  }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; position: relative; z-index: 3; }
+  .brand { display: flex; flex-direction: column; gap: 2px; }
+  .brand .logo { font-family: 'Bebas Neue', sans-serif; font-size: 92px; line-height: .82; letter-spacing: 1px; color: var(--red); }
+  .brand .logo-sub { font-size: 16px; font-weight: 700; letter-spacing: 6px; color: var(--white); margin-top: 8px; }
+  .title { text-align: right; max-width: 560px; }
+  .title .meta { font-size: 22px; font-weight: 600; letter-spacing: 3px; color: var(--gold); text-transform: uppercase; }
+  .title .event { font-family: 'Bebas Neue', sans-serif; font-size: 76px; line-height: .95; letter-spacing: 1px; color: var(--red); margin-top: 6px; }
+  .title .award { font-size: 28px; font-weight: 600; letter-spacing: 4px; color: var(--white); text-transform: uppercase; margin-top: 4px; }
+  .divider { height: 4px; background: linear-gradient(90deg, var(--red) 0%, var(--gold) 100%); margin: 30px 0 26px; border-radius: 2px; position: relative; z-index: 3; }
+  .rows { display: flex; flex-direction: column; gap: 14px; flex: 1; min-height: 0; position: relative; z-index: 3; }
+  .row { display: flex; align-items: stretch; gap: 16px; flex: 1 1 0; min-height: 0; }
+  .rank-box { width: 110px; flex: 0 0 110px; background: var(--red); display: flex; align-items: center; justify-content: center; border-radius: 4px; box-shadow: 0 4px 14px rgba(0,0,0,.35); }
+  .rank-box .n { font-family: 'Bebas Neue', sans-serif; font-size: 72px; line-height: 1; color: var(--white); }
+  .row.first .rank-box { background: var(--gold); }
+  .row.first .rank-box .n { color: var(--navy); }
+  .name-box { flex: 1; background: var(--white); transform: skewX(-7deg); border-radius: 4px; display: flex; align-items: center; padding: 0 36px; overflow: hidden; box-shadow: 0 4px 14px rgba(0,0,0,.35); }
+  .name-box .inner { transform: skewX(7deg); width: 100%; }
+  .name-box .athlete { font-size: 36px; font-weight: 700; color: var(--navy); line-height: 1.05; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .name-box .school { font-size: 23px; font-weight: 600; color: var(--red); letter-spacing: .5px; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .time-box { flex: 0 0 232px; background: var(--red); transform: skewX(-7deg); border-radius: 4px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 14px rgba(0,0,0,.35); }
+  .row.first .time-box { background: var(--gold); }
+  .time-box .inner { transform: skewX(7deg); }
+  .time-box .t { font-family: 'DM Mono', monospace; font-size: 38px; font-weight: 500; color: var(--white); letter-spacing: .5px; }
+  .row.first .time-box .t { color: var(--navy); }
+  .footer { margin-top: 24px; text-align: center; position: relative; z-index: 3; font-size: 22px; font-weight: 600; letter-spacing: 5px; color: var(--white); opacity: .85; }
+  .footer span { color: var(--red); }
+</style>
+</head>
+<body>
+
+  <h1>GL<span>RR</span> GRAPHIC GENERATOR</h1>
+  <div class="sub">Paste athletic.net results → get a ready-to-post PNG. Works on your phone, no app needed.</div>
+
+  <div class="panel-title">MEET INFO</div>
+  <div class="grid">
+    <div class="field">
+      <label>State</label>
+      <select id="state" onchange="updateDivisions()">
+        <option value="Michigan">Michigan · MHSAA</option>
+        <option value="Indiana">Indiana · IHSAA</option>
+        <option value="Illinois">Illinois · IHSA</option>
+      </select>
+    </div>
+    <div class="field" id="division-field">
+      <label>Division</label>
+      <select id="division"></select>
+    </div>
+    <div class="field">
+      <label>Sport</label>
+      <select id="sport">
+        <option value="Outdoor Track">Outdoor Track</option>
+        <option value="Indoor Track">Indoor Track</option>
+        <option value="Cross Country">Cross Country</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Gender</label>
+      <select id="gender">
+        <option value="Boys">Boys</option>
+        <option value="Girls">Girls</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Event</label>
+      <input type="text" id="event" placeholder="e.g. 100m, 4x800, Mile" value="100m">
+    </div>
+    <div class="field">
+      <label>Award Type</label>
+      <select id="awardtype">
+        <option value="All-State">All-State</option>
+        <option value="Rankings">Rankings</option>
+        <option value="All-Conference">All-Conference</option>
+        <option value="Results">Results</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Event Type</label>
+      <select id="eventtype" onchange="updateScoring()">
+        <option value="individual">Individual</option>
+        <option value="relay">Relay</option>
+        <option value="team">Team</option>
+      </select>
+    </div>
+    <div class="field" id="scoring-field" style="display:none;">
+      <label>Scoring</label>
+      <select id="scoring">
+        <option value="points">Points (Track)</option>
+        <option value="score">Score (XC)</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="panel-title">PASTE RESULTS</div>
+  <textarea id="rawInput" placeholder="Paste athletic.net results here…
+1  John Smith  10.45
+Rockford
+2  Mike Johnson  10.51
+East Lansing"></textarea>
+
+  <div class="btn-row">
+    <button class="btn btn-primary" onclick="generate()">⚡ GENERATE</button>
+    <button class="btn btn-dl" id="dlBtn" onclick="downloadPNG()" disabled>⬇ DOWNLOAD PNG</button>
+  </div>
+  <div class="msg" id="msg"></div>
+
+  <div class="stage-holder" id="stageHolder">
+    <div class="stage" id="stage">
+      <div class="card" id="card">
+        <div class="photo"></div>
+        <div class="overlay"></div>
+        <div class="run-watermark">RUN</div>
+        <div class="content">
+          <div class="header">
+            <div class="brand">
+              <div class="logo" id="t-logo">MHSAA</div>
+              <div class="logo-sub">GREAT LAKES RUN RANKINGS</div>
+            </div>
+            <div class="title">
+              <div class="meta" id="t-meta">OUTDOOR TRACK · D1 FINALS</div>
+              <div class="event" id="t-event">BOYS 100M</div>
+              <div class="award" id="t-award">ALL-STATE</div>
+            </div>
+          </div>
+          <div class="divider"></div>
+          <div class="rows" id="rows"></div>
+          <div class="footer">@GREATLAKES<span>TRACK</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <img id="resultImg" alt="Generated graphic">
+  <div class="save-hint" id="saveHint">On mobile: press &amp; hold the image above → “Save Image”.</div>
+
+<script>
+  const ASSOC = { Michigan: "MHSAA", Indiana: "IHSAA", Illinois: "IHSA" };
+  const STATE_DIVISIONS = {
+    Michigan: ['D1','D2','D3','D4'],
+    Indiana:  ['Open'],
+    Illinois: ['1A','2A','3A'],
+  };
+
+  let SCHOOLS = {};   // loaded from schools.json
+
+  // ── Row-count rules (mirrors getMaxResults + CLAUDE.md) ─────────────────
+  function getMaxResults(state, award) {
+    if (award === "Rankings") return 10;
+    return (state === "Indiana" || state === "Illinois") ? 9 : 8;
+  }
+
+  function updateDivisions() {
+    const state = document.getElementById('state').value;
+    const sel = document.getElementById('division');
+    const divs = STATE_DIVISIONS[state] || ['D1'];
+    sel.innerHTML = divs.map(d => `<option value="${d}">${d}</option>`).join('');
+    document.getElementById('division-field').style.display =
+      (divs.length === 1 && divs[0] === 'Open') ? 'none' : '';
+  }
+
+  function updateScoring() {
+    document.getElementById('scoring-field').style.display =
+      document.getElementById('eventtype').value === 'team' ? '' : 'none';
+  }
+
+  // ── Mirror of fill_template.build_rows (relay/team/individual formatting) ─
+  function buildRows(parsed, meta) {
+    const isTeam  = meta.eventtype === 'team';
+    const isRelay = meta.eventtype === 'relay';
+    return parsed.map(r => {
+      let name, school, time;
+      if (isTeam) {
+        name = shortenSchool(r.name, SCHOOLS);
+        time = meta.scoring === 'points' ? `${r.time} pts` : `${r.time}`;
+        if (r.school) {
+          if (meta.sport.includes('Cross Country')) {
+            school = `Scorers: ${r.school}`;
+          } else {
+            const plural = r.school.includes('&') || r.school.includes(',');
+            school = `${plural ? 'Top Scorers' : 'Top Scorer'}: ${r.school}`;
+          }
+        } else { school = ''; }
+      } else if (isRelay) {
+        name = shortenSchool(r.name, SCHOOLS);
+        school = initialsList(r.school);
+        time = r.time;
+      } else {
+        name = r.name;
+        school = shortenSchool(r.school, SCHOOLS);
+        time = r.time;
+      }
+      return { rank: String(r.rank), name, school, time };
+    });
+  }
+
+  function getMeta() {
+    return {
+      state:     document.getElementById('state').value,
+      division:  document.getElementById('division').value,
+      sport:     document.getElementById('sport').value,
+      gender:    document.getElementById('gender').value,
+      event:     document.getElementById('event').value || 'Event',
+      awardtype: document.getElementById('awardtype').value,
+      eventtype: document.getElementById('eventtype').value,
+      scoring:   document.getElementById('scoring').value,
+    };
+  }
+
+  function renderHeader(meta) {
+    document.getElementById('t-logo').textContent = ASSOC[meta.state] || meta.state;
+    const showDiv = meta.division && meta.division !== 'Open';
+    let metaLine = meta.sport.toUpperCase();
+    if (showDiv) metaLine += ' · ' + meta.division;
+    if (meta.awardtype === 'All-State') metaLine += ' FINALS';
+    document.getElementById('t-meta').textContent  = metaLine;
+    document.getElementById('t-event').textContent = `${meta.gender} ${meta.event}`.toUpperCase();
+    document.getElementById('t-award').textContent = meta.awardtype.toUpperCase();
+  }
+
+  function renderRows(rows) {
+    document.getElementById('rows').innerHTML = rows.map((r, i) => {
+      const rank = i + 1;
+      return `
+      <div class="row ${rank === 1 ? 'first' : ''}">
+        <div class="rank-box"><span class="n">${r.rank}</span></div>
+        <div class="name-box"><div class="inner">
+          <div class="athlete">${escapeHtml(r.name)}</div>
+          ${r.school ? `<div class="school">${escapeHtml(r.school)}</div>` : ''}
+        </div></div>
+        <div class="time-box"><div class="inner"><span class="t">${escapeHtml(r.time)}</span></div></div>
+      </div>`;
+    }).join('');
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c =>
+      ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  function fitStage() {
+    const holder = document.getElementById('stageHolder');
+    const scale = holder.clientWidth / 1080;
+    document.getElementById('stage').style.transform = `scale(${scale})`;
+    holder.style.height = (1350 * scale) + 'px';
+  }
+
+  function setMsg(text, isErr) {
+    const m = document.getElementById('msg');
+    m.textContent = text || '';
+    m.className = 'msg' + (isErr ? ' err' : '');
+  }
+
+  function generate() {
+    const meta = getMeta();
+    const raw = document.getElementById('rawInput').value;
+    if (!raw.trim()) { setMsg('Paste some results first.', true); return; }
+
+    const max = getMaxResults(meta.state, meta.awardtype);
+    const parsed = parseResults(raw, { isTeam: meta.eventtype === 'team', maxResults: max });
+    if (!parsed.length) { setMsg('Could not parse any results from that text.', true); return; }
+
+    renderHeader(meta);
+    renderRows(buildRows(parsed, meta));
+    fitStage();
+
+    document.getElementById('dlBtn').disabled = false;
+    document.getElementById('resultImg').style.display = 'none';
+    document.getElementById('saveHint').style.display = 'none';
+    setMsg(`Parsed ${parsed.length} result${parsed.length === 1 ? '' : 's'} (max ${max} for ${meta.state} ${meta.awardtype}).`);
+  }
+
+  async function downloadPNG() {
+    const btn = document.getElementById('dlBtn');
+    const stage = document.getElementById('stage');
+    const card = document.getElementById('card');
+    btn.disabled = true; const old = btn.textContent; btn.textContent = '⏳ RENDERING…';
+    try {
+      if (document.fonts && document.fonts.ready) await document.fonts.ready;
+      const prev = stage.style.transform;
+      stage.style.transform = 'none';            // capture at full 1080x1350
+      const canvas = await html2canvas(card, {
+        scale: 2, backgroundColor: null, useCORS: true,
+        width: 1080, height: 1350, windowWidth: 1080, windowHeight: 1350,
+      });
+      stage.style.transform = prev;
+
+      const url = canvas.toDataURL('image/png');
+      const meta = getMeta();
+      const fname = `glrr_${meta.state}_${meta.gender}_${meta.event}`.replace(/[^a-z0-9_]+/gi,'_') + '.png';
+
+      // Desktop: triggers a download. Mobile: also show the image to long-press-save.
+      const a = document.createElement('a');
+      a.download = fname; a.href = url; a.click();
+
+      const img = document.getElementById('resultImg');
+      img.src = url; img.style.display = 'block';
+      document.getElementById('saveHint').style.display = 'block';
+    } catch (e) {
+      console.error(e);
+      setMsg('PNG export failed — see console.', true);
+    } finally {
+      btn.disabled = false; btn.textContent = old;
+    }
+  }
+
+  // ── Init ────────────────────────────────────────────────────────────────
+  async function init() {
+    updateDivisions();
+    updateScoring();
+    try {
+      SCHOOLS = await fetch('schools.json').then(r => r.json());
+    } catch (e) {
+      console.warn('schools.json not loaded (names will pass through uncleaned-mapped):', e);
+      setMsg('Note: schools.json could not load — school-name restoration is off.', true);
+    }
+    fitStage();
+  }
+  window.addEventListener('resize', fitStage);
+  init();
+</script>
+</body>
+</html>

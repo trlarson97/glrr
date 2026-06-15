@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GLRR Graphic Preview</title>
+
+<!-- Google Fonts: same family set as the main app -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<!-- html2canvas: renders the card DOM to a PNG, fully in the browser -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+<style>
+  :root {
+    --red:   #c0392b;
+    --gold:  #e8c840;
+    --white: #f5f5f0;
+    --navy:  #15181c;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #0c0e11;
+    color: var(--white);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px 12px 60px;
+  }
+
+  /* ── Toolbar ─────────────────────────────────────────────────────────── */
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 22px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .toolbar h1 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 22px;
+    letter-spacing: 2px;
+    color: var(--white);
+    font-weight: 400;
+  }
+  .toolbar h1 span { color: var(--red); }
+
+  .dl-btn {
+    background: var(--red);
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 18px;
+    letter-spacing: 1.5px;
+    padding: 11px 26px;
+    cursor: pointer;
+    transition: background .15s, opacity .15s;
+  }
+  .dl-btn:hover { background: #a93226; }
+  .dl-btn:disabled { opacity: .5; cursor: wait; }
+
+  .ctrl {
+    background: #1b1f25;
+    color: var(--white);
+    border: 1px solid #2e3440;
+    border-radius: 4px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    padding: 9px 12px;
+    cursor: pointer;
+  }
+  .ctrl:focus { outline: none; border-color: var(--gold); }
+
+  .note {
+    font-size: 12px;
+    color: #8a8f98;
+    max-width: 600px;
+    text-align: center;
+    line-height: 1.6;
+  }
+  .note code { color: var(--gold); }
+
+  /* ── Display scaling ──────────────────────────────────────────────────
+     The card is built at full 1080x1350 (the export resolution). We shrink
+     it for on-screen preview with a CSS transform; the export code removes
+     the transform momentarily so the PNG comes out full-size and crisp. */
+  .stage-holder {
+    width: 594px;          /* 1080 * 0.55 */
+    height: 742px;         /* 1350 * 0.55 */
+    overflow: hidden;
+    border-radius: 6px;
+    box-shadow: 0 18px 50px rgba(0,0,0,.6);
+  }
+  .stage {
+    transform: scale(0.55);
+    transform-origin: top left;
+  }
+
+  /* ── THE CARD (1080 x 1350) ───────────────────────────────────────────── */
+  .card {
+    position: relative;
+    width: 1080px;
+    height: 1350px;
+    overflow: hidden;
+    background:
+      linear-gradient(135deg, #1b1f25 0%, #15181c 45%, #0f1114 100%);
+    color: var(--white);
+    font-family: 'DM Sans', sans-serif;
+  }
+
+  /* Faded photo layer.
+     >>> TO USE YOUR REAL PHOTO: set background-image below to url('your-photo.jpg')
+         (a runner/track action shot). The dark overlay keeps text readable. <<<
+     For now this is a CSS-only stand-in texture so the preview is self-contained. */
+  .card .photo {
+    position: absolute;
+    inset: 0;
+    background-image:
+      radial-gradient(circle at 75% 18%, rgba(192,57,43,.20), transparent 42%),
+      radial-gradient(circle at 18% 88%, rgba(232,200,64,.10), transparent 45%),
+      repeating-linear-gradient(115deg, rgba(255,255,255,.018) 0 2px, transparent 2px 22px);
+    background-size: cover;
+    background-position: center;
+    opacity: 1;
+    filter: saturate(1.05);
+  }
+  /* Dark gradient overlay on top of the photo for contrast */
+  .card .overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(13,15,18,.55) 0%, rgba(13,15,18,.30) 35%, rgba(13,15,18,.80) 100%);
+  }
+
+  .card .content {
+    position: relative;
+    z-index: 2;
+    height: 100%;
+    padding: 60px 64px 56px;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── Vertical RUN watermark (top-right corner) ───────────────────────── */
+  .run-watermark {
+    position: absolute;
+    top: 150px;
+    right: 26px;
+    z-index: 1;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 150px;
+    line-height: 1;
+    letter-spacing: 14px;
+    color: var(--white);
+    opacity: 0.055;
+    transform: rotate(90deg);
+    transform-origin: top right;
+    white-space: nowrap;
+    pointer-events: none;
+  }
+
+  /* ── Header ──────────────────────────────────────────────────────────── */
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    position: relative;
+    z-index: 3;
+  }
+
+  .brand {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .brand .logo {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 92px;
+    line-height: .82;
+    letter-spacing: 1px;
+    color: var(--red);
+  }
+  .brand .logo-sub {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 6px;
+    color: var(--white);
+    margin-top: 8px;
+  }
+
+  .title {
+    text-align: right;
+    max-width: 560px;
+  }
+  .title .meta {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: 3px;
+    color: var(--gold);
+    text-transform: uppercase;
+  }
+  .title .event {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 76px;
+    line-height: .95;
+    letter-spacing: 1px;
+    color: var(--red);
+    margin-top: 6px;
+  }
+  .title .award {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 28px;
+    font-weight: 600;
+    letter-spacing: 4px;
+    color: var(--white);
+    text-transform: uppercase;
+    margin-top: 4px;
+  }
+
+  /* gold divider under header */
+  .divider {
+    height: 4px;
+    background: linear-gradient(90deg, var(--red) 0%, var(--gold) 100%);
+    margin: 30px 0 26px;
+    border-radius: 2px;
+    position: relative;
+    z-index: 3;
+  }
+
+  /* ── Ranking rows ────────────────────────────────────────────────────── */
+  .rows {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    flex: 1;
+    min-height: 0;
+    position: relative;
+    z-index: 3;
+  }
+
+  /* Rows share the available height equally, so 8 / 9 / 10 rows all fit
+     the fixed 1350px card without overflowing or clipping. */
+  .row {
+    display: flex;
+    align-items: stretch;
+    gap: 16px;
+    flex: 1 1 0;
+    min-height: 0;
+  }
+
+  /* red square with rank */
+  .rank-box {
+    width: 110px;
+    flex: 0 0 110px;
+    background: var(--red);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    box-shadow: 0 4px 14px rgba(0,0,0,.35);
+  }
+  .rank-box .n {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 72px;
+    line-height: 1;
+    color: var(--white);
+  }
+  /* #1 gets the gold treatment */
+  .row.first .rank-box { background: var(--gold); }
+  .row.first .rank-box .n { color: var(--navy); }
+
+  /* white slightly-skewed name box */
+  .name-box {
+    flex: 1;
+    background: var(--white);
+    transform: skewX(-7deg);
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    padding: 0 36px;
+    overflow: hidden;
+    box-shadow: 0 4px 14px rgba(0,0,0,.35);
+  }
+  .name-box .inner {
+    transform: skewX(7deg);   /* un-skew the text */
+    width: 100%;
+  }
+  .name-box .athlete {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 36px;
+    font-weight: 700;
+    color: var(--navy);
+    line-height: 1.05;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .name-box .school {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 23px;
+    font-weight: 600;
+    color: var(--red);
+    letter-spacing: .5px;
+    margin-top: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* red skewed parallelogram with time */
+  .time-box {
+    flex: 0 0 232px;
+    background: var(--red);
+    transform: skewX(-7deg);
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 14px rgba(0,0,0,.35);
+  }
+  .row.first .time-box { background: var(--gold); }
+  .time-box .inner {
+    transform: skewX(7deg);
+  }
+  .time-box .t {
+    font-family: 'DM Mono', monospace;
+    font-size: 38px;
+    font-weight: 500;
+    color: var(--white);
+    letter-spacing: .5px;
+  }
+  .row.first .time-box .t { color: var(--navy); }
+
+  /* footer handle */
+  .footer {
+    margin-top: 24px;
+    text-align: center;
+    position: relative;
+    z-index: 3;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: 5px;
+    color: var(--white);
+    opacity: .85;
+  }
+  .footer span { color: var(--red); }
+</style>
+</head>
+<body>
+
+  <div class="toolbar">
+    <h1>GL<span>RR</span> · GRAPHIC PREVIEW</h1>
+    <select class="ctrl" id="stateSel" onchange="render()">
+      <option value="Michigan">Michigan · MHSAA</option>
+      <option value="Indiana">Indiana · IHSAA</option>
+      <option value="Illinois">Illinois · IHSA</option>
+    </select>
+    <select class="ctrl" id="awardSel" onchange="render()">
+      <option value="All-State">All-State</option>
+      <option value="Rankings">Rankings</option>
+    </select>
+    <button class="dl-btn" id="dlBtn" onclick="downloadPNG()">⬇ DOWNLOAD PNG</button>
+  </div>
+  <p class="note">
+    One graphic from placeholder data so you can compare it to your Canva template.
+    Use the dropdowns to check row counts: <strong>All-State</strong> = 8 (MI) / 9 (IN, IL),
+    <strong>Rankings</strong> = 10 for all three. Drop a real photo in later by editing the
+    <code>.photo</code> background-image.
+    &nbsp;·&nbsp; Browsers cache HTML — <strong>hard-refresh (Ctrl+F5)</strong> after any edit.
+  </p>
+
+  <div class="stage-holder">
+    <div class="stage" id="stage">
+      <!-- ===================== THE GRAPHIC ===================== -->
+      <div class="card" id="card">
+        <div class="photo"></div>
+        <div class="overlay"></div>
+        <div class="run-watermark">RUN</div>
+
+        <div class="content">
+          <div class="header">
+            <div class="brand">
+              <div class="logo">MHSAA</div>
+              <div class="logo-sub">GREAT LAKES RUN RANKINGS</div>
+            </div>
+            <div class="title">
+              <div class="meta" id="t-meta">OUTDOOR TRACK · D1 FINALS</div>
+              <div class="event" id="t-event">BOYS 100M</div>
+              <div class="award" id="t-award">ALL-STATE</div>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="rows" id="rows"><!-- rows injected by JS --></div>
+
+          <div class="footer">@GREATLAKES<span>TRACK</span></div>
+        </div>
+      </div>
+      <!-- ====================================================== -->
+    </div>
+  </div>
+
+<script>
+  // ── Placeholder data (realistic MI Boys 100m) ───────────────────────────
+  // 10 athletes; we slice to the right count per the rules below.
+  // Later this list gets fed from your existing parser output instead.
+  const ATHLETES = [
+    { name: "Marcus Johnson",  school: "Det. Cass Tech", time: "10.42" },
+    { name: "Tyler Williams",  school: "Rockford",       time: "10.55" },
+    { name: "Jaylen Carter",   school: "AA Pioneer",     time: "10.61" },
+    { name: "DeShawn Brooks",  school: "Saline",         time: "10.68" },
+    { name: "Ethan Mitchell",  school: "Grand Haven",    time: "10.71" },
+    { name: "Caleb Foster",    school: "Brighton",       time: "10.74" },
+    { name: "Noah Reynolds",   school: "TC Central",     time: "10.79" },
+    { name: "Aiden Parker",    school: "East Kentwood",  time: "10.83" },
+    { name: "Owen Bennett",    school: "Northville",     time: "10.86" },
+    { name: "Liam Sanders",    school: "Howell",         time: "10.88" },
+  ];
+
+  // State athletic association shown as the top-left logo. Only MI/IN/IL for now.
+  const ASSOC = { Michigan: "MHSAA", Indiana: "IHSAA", Illinois: "IHSA" };
+
+  // ── Row-count rules ─────────────────────────────────────────────────────
+  //   All-State:  Michigan = 8,  Indiana = 9,  Illinois = 9
+  //   Rankings (early/mid-season):  top 10 for all three states
+  function getMaxResults(state, award) {
+    if (award === "Rankings") return 10;
+    return (state === "Indiana" || state === "Illinois") ? 9 : 8;
+  }
+
+  function render() {
+    const state = document.getElementById('stateSel').value;
+    const award = document.getElementById('awardSel').value;
+    const max   = getMaxResults(state, award);
+
+    document.querySelector('.brand .logo').textContent = ASSOC[state];
+    document.getElementById('t-meta').textContent  =
+      "OUTDOOR TRACK · D1" + (award === "All-State" ? " FINALS" : "");
+    document.getElementById('t-event').textContent = "BOYS 100M";
+    document.getElementById('t-award').textContent =
+      award === "Rankings" ? "RANKINGS" : "ALL-STATE";
+
+    document.getElementById('rows').innerHTML = ATHLETES.slice(0, max).map((a, i) => {
+      const rank = i + 1;
+      return `
+      <div class="row ${rank === 1 ? 'first' : ''}">
+        <div class="rank-box"><span class="n">${rank}</span></div>
+        <div class="name-box">
+          <div class="inner">
+            <div class="athlete">${a.name}</div>
+            ${a.school ? `<div class="school">${a.school}</div>` : ''}
+          </div>
+        </div>
+        <div class="time-box"><div class="inner"><span class="t">${a.time}</span></div></div>
+      </div>`;
+    }).join('');
+  }
+
+  render();
+
+  // ── Export to PNG ───────────────────────────────────────────────────────
+  async function downloadPNG() {
+    const btn   = document.getElementById('dlBtn');
+    const stage = document.getElementById('stage');
+    const card  = document.getElementById('card');
+
+    btn.disabled = true;
+    const oldText = btn.textContent;
+    btn.textContent = '⏳ RENDERING...';
+
+    try {
+      // Make sure web fonts are loaded before capturing, or text falls back.
+      if (document.fonts && document.fonts.ready) await document.fonts.ready;
+
+      // Remove the display-scale so the card captures at full 1080x1350.
+      const prevTransform = stage.style.transform;
+      stage.style.transform = 'none';
+
+      const canvas = await html2canvas(card, {
+        scale: 2,            // supersample -> crisp text (2160x2700)
+        backgroundColor: null,
+        useCORS: true,
+        width: 1080,
+        height: 1350,
+        windowWidth: 1080,
+        windowHeight: 1350,
+      });
+
+      stage.style.transform = prevTransform;   // restore preview scale
+
+      const link = document.createElement('a');
+      link.download = 'glrr_ranking.png';
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    } catch (e) {
+      console.error(e);
+      alert('PNG export failed — see console. (Most often: no internet for html2canvas CDN.)');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = oldText;
+    }
+  }
+</script>
+</body>
+</html>
