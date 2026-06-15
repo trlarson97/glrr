@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GLRR Grab — Bookmarklet Install</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --red:#c0392b; --gold:#e8c840; --white:#f5f5f0; --gray:#8a8f98; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:#0c0e11; color:var(--white); font-family:'DM Sans',sans-serif;
+         max-width:680px; margin:0 auto; padding:24px 16px 60px; line-height:1.6; }
+  h1 { font-family:'Bebas Neue',sans-serif; font-size:30px; letter-spacing:2px; font-weight:400; }
+  h1 span { color:var(--red); }
+  h2 { font-family:'Bebas Neue',sans-serif; font-size:18px; letter-spacing:1.5px; color:var(--gold);
+       margin:26px 0 10px; }
+  p, li { font-size:14px; color:#cfd3da; }
+  ol, ul { padding-left:22px; }
+  li { margin:5px 0; }
+  code { background:#1b1f25; border:1px solid #2e3440; border-radius:4px; padding:1px 6px;
+         font-family:'DM Mono',monospace; font-size:12px; color:var(--gold); }
+  a.bm { display:inline-block; background:var(--red); color:#fff; text-decoration:none;
+         font-family:'Bebas Neue',sans-serif; font-size:22px; letter-spacing:1.5px;
+         padding:12px 26px; border-radius:8px; margin:6px 0; }
+  textarea { width:100%; height:120px; background:#1b1f25; border:1px solid #2e3440; border-radius:6px;
+             color:var(--white); font-family:'DM Mono',monospace; font-size:11px; padding:10px;
+             margin-top:8px; resize:vertical; }
+  .copy { background:#2ecc71; color:#08210f; border:none; border-radius:5px; padding:9px 16px;
+          font-family:'Bebas Neue',sans-serif; font-size:15px; letter-spacing:1px; cursor:pointer; margin-top:8px; }
+  .note { font-size:12.5px; color:var(--gray); background:#15181c; border-left:3px solid var(--gold);
+          padding:10px 14px; border-radius:0 6px 6px 0; margin:14px 0; }
+  .site { font-size:12px; color:var(--gray); margin-top:4px; word-break:break-all; }
+</style>
+</head>
+<body>
+  <h1>GL<span>RR</span> GRAB — INSTALL</h1>
+  <p>This adds a one-tap button to your browser. On an athletic.net results or rankings page,
+     <strong>select the results you want</strong>, then tap <strong>GLRR Grab</strong> — it opens the
+     generator already filled in, ready to download.</p>
+  <p class="site">Generator it points to: <span id="genUrl"></span></p>
+
+  <h2>iPhone / Safari</h2>
+  <ol>
+    <li>Tap <strong>Copy bookmarklet code</strong> below.</li>
+    <li>Bookmark this page: tap <strong>Share → Add Bookmark → Save</strong>.</li>
+    <li>Open <strong>Bookmarks</strong> (book icon) → <strong>Edit</strong> → tap that new bookmark.</li>
+    <li>Rename it <strong>GLRR Grab</strong>, and in the <strong>address/URL</strong> field, delete what's there and <strong>paste</strong> the copied code. Save.</li>
+    <li>Done. On any athletic.net results page: select the results → Bookmarks → <strong>GLRR Grab</strong>.</li>
+  </ol>
+  <textarea id="code" readonly onclick="this.select()"></textarea>
+  <br><button class="copy" onclick="copyCode()">📋 Copy bookmarklet code</button>
+
+  <h2>Desktop (Chrome / Edge / Safari)</h2>
+  <ol>
+    <li>Show your bookmarks bar (Ctrl/Cmd-Shift-B).</li>
+    <li>Drag this button onto the bookmarks bar:</li>
+  </ol>
+  <a class="bm" id="bmLink" href="#">📥 GLRR Grab</a>
+
+  <div class="note">
+    Tip: always <strong>select the one event's results first</strong>. If you don't select anything it
+    grabs the whole page, which on a multi-event meet page is messy (and a very long link). If nothing's
+    selected on a single rankings list, the whole list is fine.
+  </div>
+
+<script>
+  // Point the bookmarklet at index.html in the SAME folder this page is served from,
+  // so it works automatically once deployed (no URL to hand-edit).
+  var base = location.href.replace(/[#?].*$/, '').replace(/[^/]*$/, '');  // dir with trailing slash
+  var gen  = base + 'index.html';
+  document.getElementById('genUrl').textContent = gen;
+
+  // The bookmarklet: prefer the user's text selection, else fall back to the page text.
+  var code =
+    "javascript:(function(){try{" +
+      "var s=(window.getSelection?String(window.getSelection()):'')||'';" +
+      "var t=(s.trim().length>=10)?s:document.body.innerText;" +
+      "location.href='" + gen + "#paste='+encodeURIComponent(t);" +
+    "}catch(e){alert('GLRR Grab failed: '+e);}})();";
+
+  document.getElementById('code').value = code;
+  document.getElementById('bmLink').setAttribute('href', code);
+
+  function copyCode() {
+    var t = document.getElementById('code');
+    t.select();
+    navigator.clipboard.writeText(t.value).then(
+      function(){ var b=document.querySelector('.copy'); b.textContent='✓ Copied'; setTimeout(()=>b.textContent='📋 Copy bookmarklet code',1800); },
+      function(){ document.execCommand('copy'); }
+    );
+  }
+</script>
+</body>
+</html>

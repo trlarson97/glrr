@@ -427,6 +427,39 @@ East Lansing"></textarea>
     }
   }
 
+  // ── Incoming data from the bookmarklet ───────────────────────────────────
+  // The bookmarklet (running on an athletic.net page, past Cloudflare) sends the
+  // results — and optionally meet info — in the URL hash, e.g.:
+  //   index.html#paste=<urlencoded results>&event=100m&gender=Boys&state=Michigan
+  function applyIncoming() {
+    if (!location.hash || location.hash.length < 2) return false;
+    const p = new URLSearchParams(location.hash.slice(1));
+    const set = (id, key, after) => {
+      const v = p.get(key);
+      if (v === null) return;
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.value = v;
+      if (after) after();
+    };
+    set('state', 'state', updateDivisions);
+    set('division', 'division');
+    set('sport', 'sport');
+    set('gender', 'gender');
+    set('event', 'event');
+    set('awardtype', 'awardtype');
+    set('eventtype', 'eventtype', updateScoring);
+    set('scoring', 'scoring');
+
+    const paste = p.get('paste');
+    if (paste !== null) {
+      document.getElementById('rawInput').value = paste;
+      generate();
+      return true;
+    }
+    return false;
+  }
+
   // ── Init ────────────────────────────────────────────────────────────────
   async function init() {
     updateDivisions();
@@ -437,6 +470,7 @@ East Lansing"></textarea>
       console.warn('schools.json not loaded (names will pass through uncleaned-mapped):', e);
       setMsg('Note: schools.json could not load — school-name restoration is off.', true);
     }
+    applyIncoming();   // auto-fill + generate if the bookmarklet handed us data
     fitStage();
   }
   window.addEventListener('resize', fitStage);
