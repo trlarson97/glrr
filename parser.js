@@ -64,7 +64,7 @@ function parsePerformanceList(lines, opts) {
     while (i < lines.length) {
       var t = lines[i];
       if (t === '') { i++; continue; }
-      time = t.replace(PB_TAG, '').trim(); i++; break;
+      time = cleanMark(t); i++; break;
     }
 
     // 3) Team — first following line that carries a date. Team sits between the
@@ -76,8 +76,8 @@ function parsePerformanceList(lines, opts) {
       var dm = d.match(DATE_PAT);
       if (dm) {
         var before = d.slice(0, dm.index).replace(/[\t ]+/g, ' ').trim();
-        before = before.replace(/^[A-Z]{2}\s+/, '');     // drop leading state code (MI/IN/IL)
-        before = before.replace(/^(\d{1,2}|-)\s+/, '');  // drop grade (number or "-")
+        before = before.replace(/^[A-Z]{2}\s+/, '');          // state code (MI/IN/IL)
+        before = before.replace(/^((?:\d{1,2}|-)\s+)+/, '');  // age &/or grade column(s) — XC has both
         team = before.trim();
         i++;
         break;
@@ -315,10 +315,11 @@ var STATUS_RE = /^(SCR|DQ|DNF|DNS|FS|ND|NH|NM|NT|FOUL)$/i;
 
 function cleanMark(m) {
   if (!m) return '';
-  m = m.replace(/\([^)]*\)/g, '');                  // wind / notes e.g. (0.2)
-  m = m.replace(/\b(PB|SB|PR|SR|NR|AR|WR|MR)\b/gi, '');
+  m = m.replace(/\([^)]*\)/g, ' ');                       // strip wind / notes e.g. (0.2)
+  // record tags, whether spaced ("10.66 PB") or glued to the FAT letter ("47.90aPB")
+  m = m.replace(/\s*(PB|SB|PR|SR|NR|AR|WR|MR)\b/gi, ' ');
   m = m.trim();
-  m = m.replace(/([\d.")])\s*[ahq]$/i, '$1');        // trailing timing letter: 10.79a, 14.20a
+  m = m.replace(/([\d."'])\s*[ahq]$/i, '$1');             // trailing FAT letter: 47.90a, 16:23.4a
   return m.trim();
 }
 
@@ -412,7 +413,7 @@ function parseRelayBlock(lines) {
   return rows;
 }
 
-function parseEvents(raw) {
+function parseTrackMeet(raw) {
   var blocks = splitEventBlocks(raw);
   var events = [];
   for (var b = 0; b < blocks.length; b++) {
@@ -437,10 +438,142 @@ function parseEvents(raw) {
   return events;
 }
 
+var FOOTER_RE = /Latest Videos|Meet managed|Upgrade to Athletic|All rights reserved|View All Latest/i;
+var GENDER_DIST = /^(Men|Mens|Women|Womens)\s+([\d,]+)\s*Meters?\b(?:.*?(D[1-5]|[123]A))?/i;
+
+function genderOf(label) { return /^W/i.test(label) ? 'Girls' : 'Boys'; }
+
+// ── Track/XC TEAM SCORES — "Mens D2" sections of "rank.  Team  score" ───────
+function parseTrackTeamScores(lines) {
+  var events = [], cur = null, any = false;
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i];
+    if (FOOTER_RE.test(line)) break;
+    var gh = line.match(/^(Men|Mens|Women|Womens)\s+(D[1-5]|[123]A|Open)\s*$/i);
+    if (gh) {
+      if (cur && cur.rows.length) events.push(cur);
+      cur = { gender: genderOf(gh[1]), event: 'Team Scores', division: gh[2].toUpperCase(),
+              sport: undefined, type: 'team', scoring: 'points', award: 'Rankings', round: '', rows: [] };
+      continue;
+    }
+    if (!cur) continue;
+    var p = line.split(/\t+|\s{2,}/).map(function (s) { return s.trim(); }).filter(function (s) { return s.length; });
+    if (p.length >= 3 && /^\d+\.$/.test(p[0]) && /^\d+(\.\d+)?$/.test(p[p.length - 1])) {
+      cur.rows.push({ rank: parseInt(p[0], 10), name: p.slice(1, p.length - 1).join(' '), school: '', time: p[p.length - 1] });
+      any = true;
+    }
+  }
+  if (cur && cur.rows.length) events.push(cur);
+  return any ? events : [];
+}
+
+// ── XC MEET individual results — rank / avatar / name / team / time / "Yr:" ─
+function parseXcMeet(lines) {
+  var header = null;
+  for (var h = 0; h < lines.length; h++) {
+    var hm = lines[h].match(GENDER_DIST);
+    if (hm) { header = { gender: genderOf(hm[1]), event: cleanEvent(hm[2] + ' Meters'), division: (hm[3] || '').toUpperCase() }; break; }
+  }
+  if (!header) return null;
+  if (!lines.some(function (l) { return /Yr:\s*\d/.test(l); })) return null;   // XC meet has "Yr: 11" lines
+  var rows = [], i = 0;
+  while (i < lines.length) {
+    if (FOOTER_RE.test(lines[i])) break;
+    if (!/^\d{1,3}$/.test(lines[i])) { i++; continue; }
+    var rank = parseInt(lines[i], 10); i++;
+    var name = '';
+    while (i < lines.length) {
+      var s = lines[i];
+      if (s === '' || s === '*' || /^[A-Z]{1,4}$/.test(s) || /^[A-Z]\($/.test(s)) { i++; continue; }
+      if (/^\d{1,3}$/.test(s)) break;
+      name = s; i++; break;
+    }
+    if (!name) continue;
+    var team = '';
+    while (i < lines.length && lines[i] === '') i++;
+    if (i < lines.length) { team = lines[i]; i++; }
+    var time = '';
+    while (i < lines.length && lines[i] === '') i++;
+    if (i < lines.length) { time = cleanMark(lines[i]); i++; }
+    if (i < lines.length && /Yr:\s*\d/.test(lines[i])) i++;
+    if (name && time && /[:.]/.test(time) && !/^\d+$/.test(name)) {
+      rows.push({ rank: rank, name: name, school: team, time: time });
+    }
+  }
+  rows.sort(function (a, b) { return a.rank - b.rank; });
+  return rows.length ? { gender: header.gender, event: header.event, division: header.division,
+                         sport: 'Cross Country', type: 'individual', award: undefined, round: '', rows: rows } : null;
+}
+
+// ── XC TEAM SCORES — "Official Team Scores" + "rank  Team  score  places…" ──
+function parseXcTeamScores(lines) {
+  if (!lines.some(function (l) { return /^Official Team Scores$/i.test(l); })) return null;
+  var header = null;
+  for (var h = 0; h < lines.length; h++) {
+    var hm = lines[h].match(GENDER_DIST);
+    if (hm) { header = { gender: genderOf(hm[1]), division: (hm[3] || '').toUpperCase() }; break; }
+  }
+  var rows = [], started = false;
+  for (var i = 0; i < lines.length; i++) {
+    if (FOOTER_RE.test(lines[i])) break;
+    if (/^Official Team Scores$/i.test(lines[i])) { started = true; continue; }
+    if (!started) continue;
+    var p = lines[i].split(/\t+|\s{2,}/).map(function (s) { return s.trim(); }).filter(function (s) { return s.length; });
+    if (p.length >= 4 && /^\d+$/.test(p[0]) && !/^\d+$/.test(p[1]) && /^\d+$/.test(p[2])) {
+      rows.push({ rank: parseInt(p[0], 10), name: p[1], school: p.slice(3, 8).join(', '), time: p[2] });
+    }
+  }
+  rows.sort(function (a, b) { return a.rank - b.rank; });
+  return rows.length ? { gender: (header ? header.gender : 'Boys'), event: 'Team Scores',
+                         division: (header ? header.division : ''), sport: 'Cross Country',
+                         type: 'team', scoring: 'score', award: 'Rankings', round: '', rows: rows } : null;
+}
+
+// ── XC HYPOTHETICAL team rankings — 4-line blocks ───────────────────────────
+function parseHypothetical(lines) {
+  if (!lines.some(function (l) { return /Hypothetical XC Meet/i.test(l); })) return null;
+  var division = '';
+  for (var h = 0; h < lines.length; h++) {
+    var dm = lines[h].match(/Division\s+(\d)\s+Hypothetical/i);
+    if (dm) { division = 'D' + dm[1]; break; }
+  }
+  var rows = [];
+  for (var i = 0; i < lines.length; i++) {
+    var m = lines[i].match(/^(\d{1,3})[\t ]+(\d{1,4})[\t ]+(.+?),\s*[A-Z]{2}\s*-\s*Team Time \(1st 5\)\s*([\d:.]+)/i);
+    if (m) rows.push({ rank: parseInt(m[1], 10), name: m[3].trim(), school: '', time: m[2] });
+  }
+  rows.sort(function (a, b) { return a.rank - b.rank; });
+  return rows.length ? { gender: 'Boys', event: 'Team Rankings', division: division, sport: 'Cross Country',
+                         type: 'team', scoring: 'score', award: 'Rankings', round: '', rows: rows } : null;
+}
+
+// ── Universal router: returns an array of events (1 = single graphic, N = batch) ─
+function parseEvents(raw) {
+  var lines = raw.split('\n').map(function (l) { return l.trim(); });
+
+  var hyp = parseHypothetical(lines);   if (hyp) return [hyp];
+  var xts = parseXcTeamScores(lines);   if (xts) return [xts];
+  var tts = parseTrackTeamScores(lines); if (tts.length) return tts;
+  var tm  = parseTrackMeet(raw);        if (tm.length) return tm;
+  var xc  = parseXcMeet(lines);         if (xc) return [xc];
+
+  if (looksLikePerformanceList(lines)) {
+    var rows = parsePerformanceList(lines, { maxResults: 50 });
+    if (rows.length) {
+      var meta = detectMeta(raw);
+      return [{ gender: meta.gender, event: meta.event || '', division: meta.division || '',
+                sport: meta.sport, type: 'individual', award: meta.awardtype || 'Rankings', round: '', rows: rows }];
+    }
+  }
+  return [];
+}
+
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { parseResults: parseResults, detectMeta: detectMeta,
                      looksLikePerformanceList: looksLikePerformanceList,
                      parsePerformanceList: parsePerformanceList,
                      parseEvents: parseEvents, parseEventHeader: parseEventHeader,
-                     splitEventBlocks: splitEventBlocks };
+                     splitEventBlocks: splitEventBlocks, parseTrackMeet: parseTrackMeet,
+                     parseTrackTeamScores: parseTrackTeamScores, parseXcMeet: parseXcMeet,
+                     parseXcTeamScores: parseXcTeamScores, parseHypothetical: parseHypothetical };
 }

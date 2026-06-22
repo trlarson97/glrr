@@ -416,11 +416,11 @@ East Lansing"></textarea>
     const raw = document.getElementById('rawInput').value;
     if (!raw.trim()) { setMsg('Paste some results first.', true); return; }
 
-    // Full meet page (many events on one page) -> batch mode.
     const events = parseEvents(raw);
-    if (events.length) { showBatch(events); return; }
+    if (events.length > 1)  { showBatch(events); return; }           // full meet / team scores
+    if (events.length === 1) { renderSingleEvent(events[0]); return; } // rankings / xc meet / hypothetical
 
-    // Single event (rankings page / clean paste).
+    // Clean hand-paste fallback (no athletic.net structure detected).
     document.getElementById('batchPanel').style.display = 'none';
     document.getElementById('stageHolder').style.display = '';
     const meta = getMeta();
@@ -436,6 +436,33 @@ East Lansing"></textarea>
     document.getElementById('resultImg').style.display = 'none';
     document.getElementById('saveHint').style.display = 'none';
     setMsg(`Parsed ${parsed.length} result${parsed.length === 1 ? '' : 's'} (max ${max} for ${meta.state} ${meta.awardtype}).`);
+  }
+
+  // A single detected event (rankings, XC meet, hypothetical) — auto-fill the form + render.
+  function renderSingleEvent(ev) {
+    document.getElementById('batchPanel').style.display = 'none';
+    document.getElementById('stageHolder').style.display = '';
+    if (ev.sport)    setVal('sport', ev.sport);
+    if (ev.gender)   setVal('gender', ev.gender);
+    if (ev.division) setVal('division', ev.division);
+    if (ev.type)   { setVal('eventtype', ev.type); updateScoring(); }
+    if (ev.scoring)  setVal('scoring', ev.scoring);
+    if (ev.award)    setVal('awardtype', ev.award);
+    if (ev.event)    document.getElementById('event').value = ev.event;
+
+    const meta = getMeta();
+    const evF = Object.assign({}, ev, {
+      gender:   ev.gender   || meta.gender,
+      event:    ev.event    || meta.event,
+      division: ev.division || meta.division,
+    });
+    renderEventForCapture(evF, meta);
+    fitStage();
+    document.getElementById('dlBtn').disabled = false;
+    document.getElementById('resultImg').style.display = 'none';
+    document.getElementById('saveHint').style.display = 'none';
+    const max = getMaxResults(meta.state, ev.award || meta.awardtype);
+    setMsg(`Parsed ${ev.rows.length} result${ev.rows.length === 1 ? '' : 's'} — showing top ${max}.`);
   }
 
   // ── Capture the current card to a PNG data URL ──────────────────────────
@@ -482,8 +509,8 @@ East Lansing"></textarea>
     document.getElementById('downloadAllBtn').disabled = true;
     document.getElementById('gallery').innerHTML = '';
     document.getElementById('progress').textContent = '';
-    document.getElementById('evCount').textContent =
-      `${events.length} events · ${events.filter(e => /final/i.test(e.round) && !e.adaptive).length} finals`;
+    const def = events.filter(e => !/prelim/i.test(e.round) && !e.adaptive).length;
+    document.getElementById('evCount').textContent = `${events.length} events · ${def} selected`;
     renderEventList();
     setMsg(`Found a full meet — ${events.length} events. Pick what to make, then tap GENERATE ALL.`);
   }
@@ -491,13 +518,13 @@ East Lansing"></textarea>
   function renderEventList() {
     const list = document.getElementById('eventList');
     list.innerHTML = EVENTS.map((ev, i) => {
-      const finals = /final/i.test(ev.round);
-      const on = finals && !ev.adaptive;
-      return `<label class="ev-item ${finals ? '' : 'prelim'}">
+      const prelim = /prelim/i.test(ev.round);
+      const on = !prelim && !ev.adaptive;
+      return `<label class="ev-item ${prelim ? 'prelim' : ''}">
         <input type="checkbox" data-idx="${i}" ${on ? 'checked' : ''}>
         <span class="ev-g">${ev.gender}</span>
         <span class="ev-name">${escapeHtml(ev.event)}</span>
-        <span class="ev-r">${ev.round}${ev.adaptive ? ' · Adpt' : ''}</span>
+        <span class="ev-r">${ev.round || ''}${ev.adaptive ? ' · Adpt' : ''}</span>
         <span class="ev-n">${ev.rows.length}</span>
       </label>`;
     }).join('');
@@ -508,10 +535,8 @@ East Lansing"></textarea>
     const a = document.getElementById('incAdaptive').checked;
     document.querySelectorAll('#eventList input[type=checkbox]').forEach(cb => {
       const ev = EVENTS[+cb.dataset.idx];
-      const finals = /final/i.test(ev.round);
-      let on = finals || (p && !finals);
-      if (ev.adaptive && !a) on = false;
-      cb.checked = on;
+      const prelim = /prelim/i.test(ev.round);
+      cb.checked = (!prelim || p) && (!ev.adaptive || a);
     });
   }
 
@@ -521,16 +546,18 @@ East Lansing"></textarea>
   }
 
   function renderEventForCapture(ev, meta) {
+    const sport = ev.sport || meta.sport;
+    const award = ev.award || meta.awardtype;
     document.getElementById('t-logo').textContent = ASSOC[meta.state] || meta.state;
     const showDiv = ev.division && ev.division !== 'Open';
-    let metaLine = meta.sport.toUpperCase();
+    let metaLine = sport.toUpperCase();
     if (showDiv) metaLine += ' · ' + ev.division;
-    if (meta.awardtype === 'All-State') metaLine += ' FINALS';
+    if (award === 'All-State') metaLine += ' FINALS';
     document.getElementById('t-meta').textContent  = metaLine;
     document.getElementById('t-event').textContent = `${ev.gender} ${ev.event}`.toUpperCase();
-    document.getElementById('t-award').textContent = meta.awardtype.toUpperCase();
-    const max = getMaxResults(meta.state, meta.awardtype);
-    const rowMeta = Object.assign({}, meta, { eventtype: ev.type, gender: ev.gender });
+    document.getElementById('t-award').textContent = award.toUpperCase();
+    const max = getMaxResults(meta.state, award);
+    const rowMeta = Object.assign({}, meta, { eventtype: ev.type, gender: ev.gender, sport: sport, scoring: ev.scoring || meta.scoring });
     renderRows(buildRows(ev.rows.slice(0, max), rowMeta));
   }
 
