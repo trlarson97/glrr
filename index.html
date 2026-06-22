@@ -149,6 +149,27 @@
   .row.first .time-box .t { color: var(--navy); }
   .footer { margin-top: 24px; text-align: center; position: relative; z-index: 3; font-size: 22px; font-weight: 600; letter-spacing: 5px; color: var(--white); opacity: .85; }
   .footer span { color: var(--red); }
+
+  /* ── Batch / multi-event mode ─────────────────────────────────────────── */
+  .batch-controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 4px 0 12px; }
+  .batch-controls label { font-size: 12px; color: var(--white); display: flex; gap: 6px; align-items: center; cursor: pointer; }
+  .batch-controls .btn { flex: 0 1 auto; min-width: 150px; }
+  .event-list { display: grid; grid-template-columns: 1fr; gap: 4px; max-height: 320px; overflow-y: auto;
+                border: 1px solid #2e3440; border-radius: 6px; padding: 8px; background: #14171c; }
+  .ev-item { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 6px 8px; border-radius: 4px; cursor: pointer; }
+  .ev-item:hover { background: #1b1f25; }
+  .ev-item input { width: 16px; height: 16px; accent-color: var(--gold); }
+  .ev-item .ev-g { font-weight: 700; color: var(--gold); min-width: 42px; }
+  .ev-item .ev-name { flex: 1; color: var(--white); }
+  .ev-item .ev-r { font-size: 11px; color: var(--gray); text-transform: uppercase; }
+  .ev-item .ev-n { font-size: 11px; color: var(--gray); min-width: 22px; text-align: right; }
+  .ev-item.prelim .ev-r { color: #8a6d3b; }
+
+  .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; margin-top: 14px; }
+  .gallery figure { margin: 0; background: #14171c; border: 1px solid #2e3440; border-radius: 8px; padding: 8px; }
+  .gallery img { width: 100%; border-radius: 4px; display: block; }
+  .gallery figcaption { font-size: 11px; color: var(--gray); margin-top: 6px; text-align: center; line-height: 1.4; }
+  .progress { font-size: 13px; color: var(--gold); margin: 8px 0; min-height: 18px; }
 </style>
 </head>
 <body>
@@ -227,6 +248,20 @@ East Lansing"></textarea>
     <button class="btn btn-dl" id="dlBtn" onclick="downloadPNG()" disabled>⬇ DOWNLOAD PNG</button>
   </div>
   <div class="msg" id="msg"></div>
+
+  <!-- ── Batch / multi-event panel (shown for full meet pages) ───────────── -->
+  <div id="batchPanel" style="display:none;">
+    <div class="panel-title">EVENTS FOUND — <span id="evCount">0</span></div>
+    <div class="batch-controls">
+      <label><input type="checkbox" id="incPrelims" onchange="applyMasterToggles()"> Include Prelims</label>
+      <label><input type="checkbox" id="incAdaptive" onchange="applyMasterToggles()"> Include Adaptive</label>
+      <button class="btn btn-primary" onclick="generateSelected()">⚡ GENERATE ALL</button>
+      <button class="btn btn-dl" id="downloadAllBtn" onclick="downloadAll()" disabled>⬇ DOWNLOAD ALL</button>
+    </div>
+    <div class="event-list" id="eventList"></div>
+    <div class="progress" id="progress"></div>
+    <div class="gallery" id="gallery"></div>
+  </div>
 
   <div class="stage-holder" id="stageHolder">
     <div class="stage" id="stage">
@@ -374,11 +409,21 @@ East Lansing"></textarea>
     m.className = 'msg' + (isErr ? ' err' : '');
   }
 
+  let EVENTS = [];       // parsed meet events (batch mode)
+  let GENERATED = [];    // { fname, url, label } produced PNGs
+
   function generate() {
-    const meta = getMeta();
     const raw = document.getElementById('rawInput').value;
     if (!raw.trim()) { setMsg('Paste some results first.', true); return; }
 
+    // Full meet page (many events on one page) -> batch mode.
+    const events = parseEvents(raw);
+    if (events.length) { showBatch(events); return; }
+
+    // Single event (rankings page / clean paste).
+    document.getElementById('batchPanel').style.display = 'none';
+    document.getElementById('stageHolder').style.display = '';
+    const meta = getMeta();
     const max = getMaxResults(meta.state, meta.awardtype);
     const parsed = parseResults(raw, { isTeam: meta.eventtype === 'team', maxResults: max });
     if (!parsed.length) { setMsg('Could not parse any results from that text.', true); return; }
@@ -393,29 +438,29 @@ East Lansing"></textarea>
     setMsg(`Parsed ${parsed.length} result${parsed.length === 1 ? '' : 's'} (max ${max} for ${meta.state} ${meta.awardtype}).`);
   }
 
+  // ── Capture the current card to a PNG data URL ──────────────────────────
+  async function captureCard() {
+    const stage = document.getElementById('stage');
+    if (document.fonts && document.fonts.ready) await document.fonts.ready;
+    const prev = stage.style.transform;
+    stage.style.transform = 'none';              // capture at full 1080x1350
+    const canvas = await html2canvas(document.getElementById('card'), {
+      scale: 2, backgroundColor: null, useCORS: true,
+      width: 1080, height: 1350, windowWidth: 1080, windowHeight: 1350,
+    });
+    stage.style.transform = prev;
+    return canvas.toDataURL('image/png');
+  }
+
   async function downloadPNG() {
     const btn = document.getElementById('dlBtn');
-    const stage = document.getElementById('stage');
-    const card = document.getElementById('card');
     btn.disabled = true; const old = btn.textContent; btn.textContent = '⏳ RENDERING…';
     try {
-      if (document.fonts && document.fonts.ready) await document.fonts.ready;
-      const prev = stage.style.transform;
-      stage.style.transform = 'none';            // capture at full 1080x1350
-      const canvas = await html2canvas(card, {
-        scale: 2, backgroundColor: null, useCORS: true,
-        width: 1080, height: 1350, windowWidth: 1080, windowHeight: 1350,
-      });
-      stage.style.transform = prev;
-
-      const url = canvas.toDataURL('image/png');
+      const url = await captureCard();
       const meta = getMeta();
       const fname = `glrr_${meta.state}_${meta.gender}_${meta.event}`.replace(/[^a-z0-9_]+/gi,'_') + '.png';
-
-      // Desktop: triggers a download. Mobile: also show the image to long-press-save.
       const a = document.createElement('a');
       a.download = fname; a.href = url; a.click();
-
       const img = document.getElementById('resultImg');
       img.src = url; img.style.display = 'block';
       document.getElementById('saveHint').style.display = 'block';
@@ -427,31 +472,151 @@ East Lansing"></textarea>
     }
   }
 
+  // ── Batch mode (one full meet -> every event as its own graphic) ────────
+  function showBatch(events) {
+    EVENTS = events;
+    GENERATED = [];
+    document.getElementById('stageHolder').style.display = '';
+    document.getElementById('batchPanel').style.display = '';
+    document.getElementById('dlBtn').disabled = true;
+    document.getElementById('downloadAllBtn').disabled = true;
+    document.getElementById('gallery').innerHTML = '';
+    document.getElementById('progress').textContent = '';
+    document.getElementById('evCount').textContent =
+      `${events.length} events · ${events.filter(e => /final/i.test(e.round) && !e.adaptive).length} finals`;
+    renderEventList();
+    setMsg(`Found a full meet — ${events.length} events. Pick what to make, then tap GENERATE ALL.`);
+  }
+
+  function renderEventList() {
+    const list = document.getElementById('eventList');
+    list.innerHTML = EVENTS.map((ev, i) => {
+      const finals = /final/i.test(ev.round);
+      const on = finals && !ev.adaptive;
+      return `<label class="ev-item ${finals ? '' : 'prelim'}">
+        <input type="checkbox" data-idx="${i}" ${on ? 'checked' : ''}>
+        <span class="ev-g">${ev.gender}</span>
+        <span class="ev-name">${escapeHtml(ev.event)}</span>
+        <span class="ev-r">${ev.round}${ev.adaptive ? ' · Adpt' : ''}</span>
+        <span class="ev-n">${ev.rows.length}</span>
+      </label>`;
+    }).join('');
+  }
+
+  function applyMasterToggles() {
+    const p = document.getElementById('incPrelims').checked;
+    const a = document.getElementById('incAdaptive').checked;
+    document.querySelectorAll('#eventList input[type=checkbox]').forEach(cb => {
+      const ev = EVENTS[+cb.dataset.idx];
+      const finals = /final/i.test(ev.round);
+      let on = finals || (p && !finals);
+      if (ev.adaptive && !a) on = false;
+      cb.checked = on;
+    });
+  }
+
+  function getCheckedEvents() {
+    return [...document.querySelectorAll('#eventList input[type=checkbox]')]
+      .filter(cb => cb.checked).map(cb => EVENTS[+cb.dataset.idx]);
+  }
+
+  function renderEventForCapture(ev, meta) {
+    document.getElementById('t-logo').textContent = ASSOC[meta.state] || meta.state;
+    const showDiv = ev.division && ev.division !== 'Open';
+    let metaLine = meta.sport.toUpperCase();
+    if (showDiv) metaLine += ' · ' + ev.division;
+    if (meta.awardtype === 'All-State') metaLine += ' FINALS';
+    document.getElementById('t-meta').textContent  = metaLine;
+    document.getElementById('t-event').textContent = `${ev.gender} ${ev.event}`.toUpperCase();
+    document.getElementById('t-award').textContent = meta.awardtype.toUpperCase();
+    const max = getMaxResults(meta.state, meta.awardtype);
+    const rowMeta = Object.assign({}, meta, { eventtype: ev.type, gender: ev.gender });
+    renderRows(buildRows(ev.rows.slice(0, max), rowMeta));
+  }
+
+  async function generateSelected() {
+    const meta = getMeta();
+    const chosen = getCheckedEvents();
+    if (!chosen.length) { setMsg('Tick at least one event first.', true); return; }
+    GENERATED = [];
+    const gallery = document.getElementById('gallery');
+    gallery.innerHTML = '';
+    const prog = document.getElementById('progress');
+    document.getElementById('downloadAllBtn').disabled = true;
+
+    for (let k = 0; k < chosen.length; k++) {
+      const ev = chosen[k];
+      prog.textContent = `Rendering ${k + 1}/${chosen.length}: ${ev.gender} ${ev.event} ${ev.round}…`;
+      renderEventForCapture(ev, meta);
+      fitStage();
+      await new Promise(r => requestAnimationFrame(r));
+      let url;
+      try { url = await captureCard(); }
+      catch (e) { console.error(e); continue; }
+      const label = `${ev.gender} ${ev.event} ${ev.round}`;
+      const fname = `glrr_${ev.gender}_${ev.event}_${ev.round}`.replace(/[^a-z0-9_]+/gi, '_') + '.png';
+      GENERATED.push({ fname, url, label });
+
+      const fig = document.createElement('figure');
+      fig.innerHTML = `<img src="${url}" alt="${escapeHtml(label)}"><figcaption>${escapeHtml(label)}</figcaption>`;
+      gallery.appendChild(fig);
+      await new Promise(r => setTimeout(r, 10));
+    }
+    prog.textContent = `Done — ${GENERATED.length} graphics ready.`;
+    document.getElementById('downloadAllBtn').disabled = GENERATED.length === 0;
+    setMsg(`Generated ${GENERATED.length} graphics. On a phone: long-press any image to save, or tap DOWNLOAD ALL.`);
+  }
+
+  async function downloadAll() {
+    if (!GENERATED.length) return;
+    for (const g of GENERATED) {
+      const a = document.createElement('a');
+      a.download = g.fname; a.href = g.url; a.click();
+      await new Promise(r => setTimeout(r, 300));
+    }
+  }
+
   // ── Incoming data from the bookmarklet ───────────────────────────────────
   // The bookmarklet (running on an athletic.net page, past Cloudflare) sends the
   // results — and optionally meet info — in the URL hash, e.g.:
   //   index.html#paste=<urlencoded results>&event=100m&gender=Boys&state=Michigan
+  // Set a select/input value only if it's valid (option must exist for selects).
+  function setVal(id, value, after) {
+    const el = document.getElementById(id);
+    if (!el || value == null || value === '') return;
+    if (el.tagName === 'SELECT') {
+      const ok = Array.prototype.some.call(el.options, o => o.value === value);
+      if (!ok) return;
+    }
+    el.value = value;
+    if (after) after();
+  }
+
   function applyIncoming() {
     if (!location.hash || location.hash.length < 2) return false;
     const p = new URLSearchParams(location.hash.slice(1));
-    const set = (id, key, after) => {
-      const v = p.get(key);
-      if (v === null) return;
-      const el = document.getElementById(id);
-      if (!el) return;
-      el.value = v;
-      if (after) after();
-    };
-    set('state', 'state', updateDivisions);
-    set('division', 'division');
-    set('sport', 'sport');
-    set('gender', 'gender');
-    set('event', 'event');
-    set('awardtype', 'awardtype');
-    set('eventtype', 'eventtype', updateScoring);
-    set('scoring', 'scoring');
-
     const paste = p.get('paste');
+
+    // Auto-detect meet info straight from the grabbed page text.
+    if (paste !== null) {
+      const det = detectMeta(paste);
+      setVal('state', det.state, updateDivisions);
+      setVal('division', det.division);
+      setVal('sport', det.sport);
+      setVal('awardtype', det.awardtype);
+      setVal('event', det.event);
+    }
+
+    // Explicit URL params override auto-detection.
+    setVal('state', p.get('state'), updateDivisions);
+    setVal('division', p.get('division'));
+    setVal('sport', p.get('sport'));
+    setVal('gender', p.get('gender'));
+    setVal('event', p.get('event'));
+    setVal('awardtype', p.get('awardtype'));
+    setVal('eventtype', p.get('eventtype'), updateScoring);
+    setVal('scoring', p.get('scoring'));
+
     if (paste !== null) {
       document.getElementById('rawInput').value = paste;
       generate();

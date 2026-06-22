@@ -35,8 +35,9 @@
 <body>
   <h1>GL<span>RR</span> GRAB — INSTALL</h1>
   <p>This adds a one-tap button to your browser. On an athletic.net results or rankings page,
-     <strong>select the results you want</strong>, then tap <strong>GLRR Grab</strong> — it opens the
-     generator already filled in, ready to download.</p>
+     just tap <strong>GLRR Grab</strong> (no need to select anything) — it opens the generator already
+     filled in. A <strong>rankings page</strong> makes one graphic; a <strong>full meet page</strong>
+     lists every event so you can make them all at once.</p>
   <p class="site">Generator it points to: <span id="genUrl"></span></p>
 
   <h2>iPhone / Safari</h2>
@@ -45,7 +46,7 @@
     <li>Bookmark this page: tap <strong>Share → Add Bookmark → Save</strong>.</li>
     <li>Open <strong>Bookmarks</strong> (book icon) → <strong>Edit</strong> → tap that new bookmark.</li>
     <li>Rename it <strong>GLRR Grab</strong>, and in the <strong>address/URL</strong> field, delete what's there and <strong>paste</strong> the copied code. Save.</li>
-    <li>Done. On any athletic.net results page: select the results → Bookmarks → <strong>GLRR Grab</strong>.</li>
+    <li>Done. On any athletic.net results page: Bookmarks → <strong>GLRR Grab</strong>.</li>
   </ol>
   <textarea id="code" readonly onclick="this.select()"></textarea>
   <br><button class="copy" onclick="copyCode()">📋 Copy bookmarklet code</button>
@@ -58,9 +59,10 @@
   <a class="bm" id="bmLink" href="#">📥 GLRR Grab</a>
 
   <div class="note">
-    Tip: always <strong>select the one event's results first</strong>. If you don't select anything it
-    grabs the whole page, which on a multi-event meet page is messy (and a very long link). If nothing's
-    selected on a single rankings list, the whole list is fine.
+    Tip: just tap <strong>GLRR Grab</strong> with nothing selected — it grabs the whole page and the
+    generator figures out the events automatically. For a <strong>very large meet</strong>, if the link
+    ever looks cut off, you can instead <strong>copy the page and paste it</strong> into the generator's
+    box by hand — same result, no length limit.
   </div>
 
 <script>
