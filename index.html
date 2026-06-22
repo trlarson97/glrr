@@ -320,6 +320,9 @@ East Lansing"></textarea>
   };
   const CONF_DIV = {};                                  // conference -> division label
   Object.keys(CONFERENCES).forEach(div => CONFERENCES[div].forEach(c => { CONF_DIV[c] = div; }));
+  // Nationals / regionals have no single conference — the logo IS the division.
+  const CHAMPS = ['NCAA D1','NCAA D2','NCAA D3','NAIA'];
+  CHAMPS.forEach(c => { CONF_DIV[c] = ''; });
   const CONF_LOGO = { 'Crossroads League': 'Crossroads' };   // shorter text for the logo
 
   let SCHOOLS = {};   // loaded from schools.json
@@ -364,10 +367,13 @@ East Lansing"></textarea>
   function populateConferences() {
     const sel = document.getElementById('conference');
     if (sel.options.length) return;
-    sel.innerHTML = Object.keys(CONFERENCES).map(div =>
+    let html = Object.keys(CONFERENCES).map(div =>
       `<optgroup label="${div}">` +
       CONFERENCES[div].map(c => `<option value="${c}">${c}</option>`).join('') +
       `</optgroup>`).join('');
+    html += `<optgroup label="Nationals / Regionals">` +
+      CHAMPS.map(c => `<option value="${c}">${c}</option>`).join('') + `</optgroup>`;
+    sel.innerHTML = html;
   }
 
   // ── Header helpers (shared by single + batch render) ────────────────────
@@ -596,7 +602,7 @@ East Lansing"></textarea>
       const on = !prelim && !ev.adaptive;
       return `<label class="ev-item ${prelim ? 'prelim' : ''}">
         <input type="checkbox" data-idx="${i}" ${on ? 'checked' : ''}>
-        <span class="ev-g">${displayGender(ev.gender, document.getElementById('level').value)}</span>
+        <span class="ev-g">${displayGender(ev.gender || document.getElementById('gender').value, document.getElementById('level').value)}</span>
         <span class="ev-name">${escapeHtml(ev.event)}</span>
         <span class="ev-r">${ev.round || ''}${ev.adaptive ? ' · Adpt' : ''}</span>
         <span class="ev-n">${ev.rows.length}</span>
@@ -627,7 +633,7 @@ East Lansing"></textarea>
     let metaLine = sport.toUpperCase();
     if (div && div !== 'Open') metaLine += ' · ' + div;
     if (award === 'All-State') metaLine += ' FINALS';
-    const gender = displayGender(ev.gender, meta.level);
+    const gender = displayGender(ev.gender || meta.gender, meta.level);
     document.getElementById('t-meta').textContent  = metaLine;
     document.getElementById('t-event').textContent = `${gender} ${ev.event}`.toUpperCase();
     document.getElementById('t-award').textContent = award.toUpperCase();

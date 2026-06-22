@@ -22,6 +22,20 @@ var RANK_DOT_LINE = /^(\d{1,3})\.$/;            // "1." alone on a line (perform
 var AVATAR_LINE   = /^[A-Z]{1,4}$/;             // initials shown when no athlete photo (e.g. "DB")
 var WIND_LINE     = /^\([-+]?\s*\d*\.?\d+\s*(m\/s)?\)$|^\(NWI\)$/i;
 var BLURRED_NAME  = /^[Xx][Xx'’.\s]*$/;         // paywalled rows render as "Xxxxx Xxxxx"
+var YEAR_RE       = /^(\d{1,2}|FR|SO|JR|SR)$/i; // class year: HS grade 9-12 OR college Fr/So/Jr/Sr
+
+// Team name from a performance-list detail line — always the column right before the
+// date. Works for every layout (HS has a state + grade col, college has just a year col,
+// XC adds an age col, field events prefix an imperial mark). e.g.
+//   "Jr   Ashland   May 01   G-MAC..."        -> Ashland
+//   "MI 16 11   Whitehall   Oct 25  ..."      -> Whitehall
+//   "60' 2.5\"  Sr   Hillsdale   May 01  ..." -> Hillsdale
+function teamFromDetail(line) {
+  var cells = line.split(/\t+|\s{2,}/).map(function (s) { return s.trim(); })
+                  .filter(function (s) { return s.length; });
+  for (var k = 0; k < cells.length; k++) if (DATE_PAT.test(cells[k])) return k > 0 ? cells[k - 1] : '';
+  return '';
+}
 
 // ── Detection ───────────────────────────────────────────────────────────────
 // A performance list has rank-dot lines, each followed (within a few lines) by a
@@ -73,12 +87,8 @@ function parsePerformanceList(lines, opts) {
     var scanned = 0;
     while (i < lines.length && scanned < 6) {
       var d = lines[i];
-      var dm = d.match(DATE_PAT);
-      if (dm) {
-        var before = d.slice(0, dm.index).replace(/[\t ]+/g, ' ').trim();
-        before = before.replace(/^[A-Z]{2}\s+/, '');          // state code (MI/IN/IL)
-        before = before.replace(/^((?:\d{1,2}|-)\s+)+/, '');  // age &/or grade column(s) — XC has both
-        team = before.trim();
+      if (DATE_PAT.test(d)) {
+        team = teamFromDetail(d);
         i++;
         break;
       }
@@ -327,8 +337,11 @@ function parseEventHeader(line) {
   // "100 Meters D2 - Finals", "4x100 Relay D2 - Finals", "Shot Put - 12lb D2 - Finals",
   // "110m Hurdles - 39\" / 0.991m D2 - Finals", "100 Meters - Ambulatory D2 Adaptive - Finals"
   var m = line.match(/^(.*?)\s+(D[1-5])(\s+Adaptive)?\s*-\s*(Finals|Prelims|Semifinals|Quarterfinals|Final|Prelim)\b/i);
-  if (!m) return null;
-  return { event: m[1].trim(), division: m[2].toUpperCase(), adaptive: !!m[3], round: m[4] };
+  if (m) return { event: m[1].trim(), division: m[2].toUpperCase(), adaptive: !!m[3], round: m[4] };
+  // College meets: "100 Meters Results - Finals" / "4x100 Relay Results - Prelims" (no division)
+  var c = line.match(/^(.+?)\s+Results\s*-\s*(Finals|Prelims|Semifinals|Quarterfinals|Final|Prelim)\b/i);
+  if (c) return { event: c[1].trim(), division: '', adaptive: false, round: c[2] };
+  return null;
 }
 
 function isMeetRow(line) {
@@ -363,7 +376,7 @@ function parseIndivBlock(lines) {
     var cells = lines[i].split('\t').map(function (s) { return s.trim(); })
                         .filter(function (s) { return s.length; });
     var rank = parseInt(cells[0], 10);
-    var grade = (cells[1] && /^\d{1,2}$/.test(cells[1])) ? cells[1] : '';
+    var grade = (cells[1] && YEAR_RE.test(cells[1])) ? cells[1] : '';
     var nameIdx = grade ? 2 : 1;
     var name = cells[nameIdx] || '';
     var markCell = cells[cells.length - 1] || '';
@@ -383,7 +396,7 @@ function parseRelayBlock(lines) {
   var rows = [], i = 0;
   var rankAlone = /^(\d{1,3})\.$/;     // relay ranks always carry a period
   var splitTime = /^[\d:.]+h$/;        // leg split (11.6h, 50.5h, 2:04.3h) — ignore
-  var gradeRe   = /^\d{1,2}$/;
+  var gradeRe   = YEAR_RE;             // grade number (HS) or Fr/So/Jr/Sr (college)
   var endMark   = /[\d.]a$/;           // official relay time ends in 'a'
   while (i < lines.length) {
     var first = lines[i].split('\t')[0].trim();
@@ -449,10 +462,10 @@ function parseTrackTeamScores(lines) {
   for (var i = 0; i < lines.length; i++) {
     var line = lines[i];
     if (FOOTER_RE.test(line)) break;
-    var gh = line.match(/^(Men|Mens|Women|Womens)\s+(D[1-5]|[123]A|Open)\s*$/i);
+    var gh = line.match(/^(Men|Mens|Women|Womens)(?:\s+(D[1-5]|[123]A|Open))?(?:\s+Results)?\s*$/i);
     if (gh) {
       if (cur && cur.rows.length) events.push(cur);
-      cur = { gender: genderOf(gh[1]), event: 'Team Scores', division: gh[2].toUpperCase(),
+      cur = { gender: genderOf(gh[1]), event: 'Team Scores', division: (gh[2] || '').toUpperCase(),
               sport: undefined, type: 'team', scoring: 'points', award: 'Rankings', round: '', rows: [] };
       continue;
     }
@@ -475,7 +488,7 @@ function parseXcMeet(lines) {
     if (hm) { header = { gender: genderOf(hm[1]), event: cleanEvent(hm[2] + ' Meters'), division: (hm[3] || '').toUpperCase() }; break; }
   }
   if (!header) return null;
-  if (!lines.some(function (l) { return /Yr:\s*\d/.test(l); })) return null;   // XC meet has "Yr: 11" lines
+  if (!lines.some(function (l) { return /Yr:\s*\S/.test(l); })) return null;   // XC meet has "Yr: 11"/"Yr: Sr" lines
   var rows = [], i = 0;
   while (i < lines.length) {
     if (FOOTER_RE.test(lines[i])) break;
@@ -495,7 +508,7 @@ function parseXcMeet(lines) {
     var time = '';
     while (i < lines.length && lines[i] === '') i++;
     if (i < lines.length) { time = cleanMark(lines[i]); i++; }
-    if (i < lines.length && /Yr:\s*\d/.test(lines[i])) i++;
+    if (i < lines.length && /Yr:\s*\S/.test(lines[i])) i++;
     if (name && time && /[:.]/.test(time) && !/^\d+$/.test(name)) {
       rows.push({ rank: rank, name: name, school: team, time: time });
     }
@@ -547,23 +560,70 @@ function parseHypothetical(lines) {
                          type: 'team', scoring: 'score', award: 'Rankings', round: '', rows: rows } : null;
 }
 
+// ── Relay rows on a performance list (college relay rankings) ───────────────
+//   rank "1." / avatar initials / 4 athlete names / time / "-  Team  Date  Meet"
+function parsePerfListRelay(section) {
+  var rows = [], i = 0;
+  var rankDot = /^(\d{1,3})\.$/;
+  while (i < section.length) {
+    var rm = section[i].match(rankDot);
+    if (!rm) { i++; continue; }
+    var rank = parseInt(rm[1], 10); i++;
+    var members = [], time = '', team = '';
+    while (i < section.length) {
+      var s = section[i];
+      if (rankDot.test(s)) break;
+      if (DATE_PAT.test(s)) { team = teamFromDetail(s); i++; break; }
+      if (s === '' || s === '*' || s === '-' || /^[A-Z]{1,4}$/.test(s)) { i++; continue; } // avatar / blank
+      if (/^\d{1,2}:\d{2}\.\d{1,2}$/.test(s) || /^\d{1,2}\.\d{2}$/.test(s)) { time = cleanMark(s); i++; continue; }
+      members.push(s.replace(/\.{2,}$/, '').trim()); i++;
+    }
+    if (team) rows.push({ rank: rank, name: team, school: members.join(', '), time: time });
+  }
+  rows.sort(function (a, b) { return a.rank - b.rank; });
+  return rows;
+}
+
+// ── Performance list split into events by "<EventName>Compare top N" headers ─
+// HS rankings = one event; college track rankings list every event on one page.
+function parsePerfListEvents(lines, fallbackEvent) {
+  var idxs = [];
+  for (var i = 0; i < lines.length; i++) if (/Compare top \d+\s*$/i.test(lines[i])) idxs.push(i);
+  if (!idxs.length) return [];
+  var events = [];
+  for (var k = 0; k < idxs.length; k++) {
+    var name = lines[idxs[k]].replace(/Compare top \d+\s*$/i, '').trim() || fallbackEvent || '';
+    var to = (k + 1 < idxs.length) ? idxs[k + 1] : lines.length;
+    var section = lines.slice(idxs[k] + 1, to);
+    var isRelay = /relay/i.test(name) || /\dx\d/i.test(name);
+    var rows = isRelay ? parsePerfListRelay(section) : parsePerformanceList(section, { maxResults: 50 });
+    if (!rows.length) continue;
+    events.push({ event: cleanEvent(String(name).split(' - ')[0]), eventRaw: name,
+                  type: isRelay ? 'relay' : 'individual', award: 'Rankings', round: '', rows: rows });
+  }
+  return events;
+}
+
 // ── Universal router: returns an array of events (1 = single graphic, N = batch) ─
 function parseEvents(raw) {
   var lines = raw.split('\n').map(function (l) { return l.trim(); });
 
-  var hyp = parseHypothetical(lines);   if (hyp) return [hyp];
-  var xts = parseXcTeamScores(lines);   if (xts) return [xts];
-  var tts = parseTrackTeamScores(lines); if (tts.length) return tts;
-  var tm  = parseTrackMeet(raw);        if (tm.length) return tm;
-  var xc  = parseXcMeet(lines);         if (xc) return [xc];
+  var hyp = parseHypothetical(lines);    if (hyp) return [hyp];
+  var xts = parseXcTeamScores(lines);    if (xts) return [xts];
+  var tm  = parseTrackMeet(raw);         if (tm.length) return tm;   // event headers => meet
+  var tts = parseTrackTeamScores(lines); if (tts.length) return tts; // no headers => team scores
+  var xc  = parseXcMeet(lines);          if (xc) return [xc];
 
-  if (looksLikePerformanceList(lines)) {
-    var rows = parsePerformanceList(lines, { maxResults: 50 });
-    if (rows.length) {
-      var meta = detectMeta(raw);
-      return [{ gender: meta.gender, event: meta.event || '', division: meta.division || '',
-                sport: meta.sport, type: 'individual', award: meta.awardtype || 'Rankings', round: '', rows: rows }];
+  // Rankings / performance lists (HS = 1 event, college track = many).
+  if (looksLikePerformanceList(lines) || /Compare top \d+/i.test(raw)) {
+    var meta = detectMeta(raw);
+    var evs = parsePerfListEvents(lines, meta.event);
+    if (!evs.length) {
+      var rows = parsePerformanceList(lines, { maxResults: 50 });
+      if (rows.length) evs = [{ event: meta.event || '', type: 'individual', award: 'Rankings', round: '', rows: rows }];
     }
+    for (var e = 0; e < evs.length; e++) evs[e].sport = meta.sport;   // form supplies gender
+    if (evs.length) return evs;
   }
   return [];
 }
@@ -575,5 +635,6 @@ if (typeof module !== 'undefined' && module.exports) {
                      parseEvents: parseEvents, parseEventHeader: parseEventHeader,
                      splitEventBlocks: splitEventBlocks, parseTrackMeet: parseTrackMeet,
                      parseTrackTeamScores: parseTrackTeamScores, parseXcMeet: parseXcMeet,
-                     parseXcTeamScores: parseXcTeamScores, parseHypothetical: parseHypothetical };
+                     parseXcTeamScores: parseXcTeamScores, parseHypothetical: parseHypothetical,
+                     parsePerfListEvents: parsePerfListEvents, teamFromDetail: teamFromDetail };
 }
