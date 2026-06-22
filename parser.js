@@ -309,10 +309,10 @@ function detectMeta(raw) {
   // Award type
   if (/Performance List|Top\s+\d+|Rankings/i.test(raw)) meta.awardtype = 'Rankings';
 
-  // Sport
+  // Sport — only Cross Country is reliably detectable. athletic.net labels BOTH indoor
+  // and outdoor as "Track & Field Performance List", so a stray "Indoor" in a meet name
+  // would wrongly flip the user's choice. Leave indoor/outdoor to the form selection.
   if (/Cross\s*Country/i.test(raw)) meta.sport = 'Cross Country';
-  else if (/Indoor/i.test(raw)) meta.sport = 'Indoor Track';
-  else if (/Track\s*&\s*Field|Track and Field|Outdoor/i.test(raw)) meta.sport = 'Outdoor Track';
 
   return meta;
 }
