@@ -180,12 +180,23 @@
   <div class="panel-title">MEET INFO</div>
   <div class="grid">
     <div class="field">
+      <label>Level</label>
+      <select id="level" onchange="updateLevel()">
+        <option value="High School">High School</option>
+        <option value="College">College</option>
+      </select>
+    </div>
+    <div class="field" id="state-field">
       <label>State</label>
       <select id="state" onchange="updateDivisions()">
         <option value="Michigan">Michigan · MHSAA</option>
         <option value="Indiana">Indiana · IHSAA</option>
         <option value="Illinois">Illinois · IHSA</option>
       </select>
+    </div>
+    <div class="field" id="conference-field" style="display:none;">
+      <label>Conference</label>
+      <select id="conference"></select>
     </div>
     <div class="field" id="division-field">
       <label>Division</label>
@@ -300,11 +311,23 @@ East Lansing"></textarea>
     Illinois: ['1A','2A','3A'],
   };
 
+  // College conferences grouped by division (header logo = conference name).
+  const CONFERENCES = {
+    'NCAA D1': ['Big Ten','MAC'],
+    'NCAA D2': ['GLIAC','G-MAC','GLVC'],
+    'NCAA D3': ['MIAA','CCIW','OAC','HCAC'],
+    'NAIA':    ['Crossroads League','WHAC','CCAC'],
+  };
+  const CONF_DIV = {};                                  // conference -> division label
+  Object.keys(CONFERENCES).forEach(div => CONFERENCES[div].forEach(c => { CONF_DIV[c] = div; }));
+  const CONF_LOGO = { 'Crossroads League': 'Crossroads' };   // shorter text for the logo
+
   let SCHOOLS = {};   // loaded from schools.json
 
   // ── Row-count rules (mirrors getMaxResults + CLAUDE.md) ─────────────────
-  function getMaxResults(state, award) {
+  function getMaxResults(state, award, level) {
     if (award === "Rankings") return 10;
+    if (level === "College") return 8;
     return (state === "Indiana" || state === "Illinois") ? 9 : 8;
   }
 
@@ -320,6 +343,54 @@ East Lansing"></textarea>
   function updateScoring() {
     document.getElementById('scoring-field').style.display =
       document.getElementById('eventtype').value === 'team' ? '' : 'none';
+  }
+
+  // High School ↔ College: swap State/Conference fields and gender labels.
+  function updateLevel() {
+    const college = document.getElementById('level').value === 'College';
+    document.getElementById('state-field').style.display      = college ? 'none' : '';
+    document.getElementById('conference-field').style.display = college ? '' : 'none';
+    document.getElementById('division-field').style.display   = college ? 'none' : '';
+    const g = document.getElementById('gender');
+    const keep = g.value;
+    g.innerHTML = college
+      ? "<option value=\"Men's\">Men's</option><option value=\"Women's\">Women's</option>"
+      : '<option value="Boys">Boys</option><option value="Girls">Girls</option>';
+    // preserve the same side (boys<->men, girls<->women) where possible
+    if (/girl|women/i.test(keep)) g.selectedIndex = 1;
+    if (college) populateConferences(); else updateDivisions();
+  }
+
+  function populateConferences() {
+    const sel = document.getElementById('conference');
+    if (sel.options.length) return;
+    sel.innerHTML = Object.keys(CONFERENCES).map(div =>
+      `<optgroup label="${div}">` +
+      CONFERENCES[div].map(c => `<option value="${c}">${c}</option>`).join('') +
+      `</optgroup>`).join('');
+  }
+
+  // ── Header helpers (shared by single + batch render) ────────────────────
+  function headerLogo(meta) {
+    if (meta.level === 'College')
+      return (CONF_LOGO[meta.conference] || meta.conference || 'GLRR').toUpperCase();
+    return ASSOC[meta.state] || meta.state;
+  }
+  function headerDivision(meta, hsFallback) {
+    return meta.level === 'College' ? (CONF_DIV[meta.conference] || '') : hsFallback;
+  }
+  // athletic.net says Boys/Girls even for college meets — show Men's/Women's in College mode.
+  function displayGender(g, level) {
+    if (level === 'College') {
+      if (/^boys?$/i.test(g))  return "Men's";
+      if (/^girls?$/i.test(g)) return "Women's";
+    }
+    return g;
+  }
+  function sizeLogo() {
+    const el = document.getElementById('t-logo');
+    const n = el.textContent.length;
+    el.style.fontSize = n <= 7 ? '92px' : (n <= 11 ? '60px' : '46px');
   }
 
   // ── Mirror of fill_template.build_rows (relay/team/individual formatting) ─
@@ -354,26 +425,29 @@ East Lansing"></textarea>
 
   function getMeta() {
     return {
-      state:     document.getElementById('state').value,
-      division:  document.getElementById('division').value,
-      sport:     document.getElementById('sport').value,
-      gender:    document.getElementById('gender').value,
-      event:     document.getElementById('event').value || 'Event',
-      awardtype: document.getElementById('awardtype').value,
-      eventtype: document.getElementById('eventtype').value,
-      scoring:   document.getElementById('scoring').value,
+      level:      document.getElementById('level').value,
+      state:      document.getElementById('state').value,
+      conference: document.getElementById('conference').value,
+      division:   document.getElementById('division').value,
+      sport:      document.getElementById('sport').value,
+      gender:     document.getElementById('gender').value,
+      event:      document.getElementById('event').value || 'Event',
+      awardtype:  document.getElementById('awardtype').value,
+      eventtype:  document.getElementById('eventtype').value,
+      scoring:    document.getElementById('scoring').value,
     };
   }
 
   function renderHeader(meta) {
-    document.getElementById('t-logo').textContent = ASSOC[meta.state] || meta.state;
-    const showDiv = meta.division && meta.division !== 'Open';
+    document.getElementById('t-logo').textContent = headerLogo(meta);
+    const div = headerDivision(meta, meta.division);
     let metaLine = meta.sport.toUpperCase();
-    if (showDiv) metaLine += ' · ' + meta.division;
+    if (div && div !== 'Open') metaLine += ' · ' + div;
     if (meta.awardtype === 'All-State') metaLine += ' FINALS';
     document.getElementById('t-meta').textContent  = metaLine;
     document.getElementById('t-event').textContent = `${meta.gender} ${meta.event}`.toUpperCase();
     document.getElementById('t-award').textContent = meta.awardtype.toUpperCase();
+    sizeLogo();
   }
 
   function renderRows(rows) {
@@ -424,7 +498,7 @@ East Lansing"></textarea>
     document.getElementById('batchPanel').style.display = 'none';
     document.getElementById('stageHolder').style.display = '';
     const meta = getMeta();
-    const max = getMaxResults(meta.state, meta.awardtype);
+    const max = getMaxResults(meta.state, meta.awardtype, meta.level);
     const parsed = parseResults(raw, { isTeam: meta.eventtype === 'team', maxResults: max });
     if (!parsed.length) { setMsg('Could not parse any results from that text.', true); return; }
 
@@ -461,7 +535,7 @@ East Lansing"></textarea>
     document.getElementById('dlBtn').disabled = false;
     document.getElementById('resultImg').style.display = 'none';
     document.getElementById('saveHint').style.display = 'none';
-    const max = getMaxResults(meta.state, ev.award || meta.awardtype);
+    const max = getMaxResults(meta.state, ev.award || meta.awardtype, meta.level);
     setMsg(`Parsed ${ev.rows.length} result${ev.rows.length === 1 ? '' : 's'} — showing top ${max}.`);
   }
 
@@ -522,7 +596,7 @@ East Lansing"></textarea>
       const on = !prelim && !ev.adaptive;
       return `<label class="ev-item ${prelim ? 'prelim' : ''}">
         <input type="checkbox" data-idx="${i}" ${on ? 'checked' : ''}>
-        <span class="ev-g">${ev.gender}</span>
+        <span class="ev-g">${displayGender(ev.gender, document.getElementById('level').value)}</span>
         <span class="ev-name">${escapeHtml(ev.event)}</span>
         <span class="ev-r">${ev.round || ''}${ev.adaptive ? ' · Adpt' : ''}</span>
         <span class="ev-n">${ev.rows.length}</span>
@@ -548,17 +622,19 @@ East Lansing"></textarea>
   function renderEventForCapture(ev, meta) {
     const sport = ev.sport || meta.sport;
     const award = ev.award || meta.awardtype;
-    document.getElementById('t-logo').textContent = ASSOC[meta.state] || meta.state;
-    const showDiv = ev.division && ev.division !== 'Open';
+    document.getElementById('t-logo').textContent = headerLogo(meta);
+    const div = headerDivision(meta, ev.division);
     let metaLine = sport.toUpperCase();
-    if (showDiv) metaLine += ' · ' + ev.division;
+    if (div && div !== 'Open') metaLine += ' · ' + div;
     if (award === 'All-State') metaLine += ' FINALS';
+    const gender = displayGender(ev.gender, meta.level);
     document.getElementById('t-meta').textContent  = metaLine;
-    document.getElementById('t-event').textContent = `${ev.gender} ${ev.event}`.toUpperCase();
+    document.getElementById('t-event').textContent = `${gender} ${ev.event}`.toUpperCase();
     document.getElementById('t-award').textContent = award.toUpperCase();
-    const max = getMaxResults(meta.state, award);
-    const rowMeta = Object.assign({}, meta, { eventtype: ev.type, gender: ev.gender, sport: sport, scoring: ev.scoring || meta.scoring });
+    const max = getMaxResults(meta.state, award, meta.level);
+    const rowMeta = Object.assign({}, meta, { eventtype: ev.type, gender: gender, sport: sport, scoring: ev.scoring || meta.scoring });
     renderRows(buildRows(ev.rows.slice(0, max), rowMeta));
+    sizeLogo();
   }
 
   async function generateSelected() {
@@ -654,7 +730,7 @@ East Lansing"></textarea>
 
   // ── Init ────────────────────────────────────────────────────────────────
   async function init() {
-    updateDivisions();
+    updateLevel();
     updateScoring();
     try {
       SCHOOLS = await fetch('schools.json').then(r => r.json());
