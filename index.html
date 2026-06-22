@@ -231,6 +231,10 @@
       </select>
     </div>
     <div class="field">
+      <label>Tag (optional)</label>
+      <input type="text" id="tag" placeholder="e.g. Freshman, Senior, Returners" value="">
+    </div>
+    <div class="field">
       <label>Event Type</label>
       <select id="eventtype" onchange="updateScoring()">
         <option value="individual">Individual</option>
@@ -439,9 +443,15 @@ East Lansing"></textarea>
       gender:     document.getElementById('gender').value,
       event:      document.getElementById('event').value || 'Event',
       awardtype:  document.getElementById('awardtype').value,
+      tag:        document.getElementById('tag').value.trim(),
       eventtype:  document.getElementById('eventtype').value,
       scoring:    document.getElementById('scoring').value,
     };
+  }
+
+  // Award line incl. an optional tag, e.g. "SENIOR RANKINGS", "RETURNER ALL-STATE".
+  function awardLabel(meta, award) {
+    return (meta.tag ? meta.tag + ' ' : '') + award;
   }
 
   function renderHeader(meta) {
@@ -452,7 +462,7 @@ East Lansing"></textarea>
     if (meta.awardtype === 'All-State') metaLine += ' FINALS';
     document.getElementById('t-meta').textContent  = metaLine;
     document.getElementById('t-event').textContent = `${meta.gender} ${meta.event}`.toUpperCase();
-    document.getElementById('t-award').textContent = meta.awardtype.toUpperCase();
+    document.getElementById('t-award').textContent = awardLabel(meta, meta.awardtype).toUpperCase();
     sizeLogo();
   }
 
@@ -559,15 +569,46 @@ East Lansing"></textarea>
     return canvas.toDataURL('image/png');
   }
 
+  // dataURL -> File (synchronous, so navigator.share stays inside the user gesture)
+  function dataURLtoFile(dataURL, fname) {
+    const comma = dataURL.indexOf(',');
+    const mime = dataURL.slice(5, comma).split(';')[0] || 'image/png';
+    const bin = atob(dataURL.slice(comma + 1));
+    const arr = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    return new File([arr], fname, { type: mime });
+  }
+
+  // Save one or many PNGs. On phones, opens ONE share sheet → "Save Image(s)" drops
+  // them into the camera roll (Photos). On desktop, falls back to direct downloads.
+  async function saveImages(items) {
+    if (!items.length) return;
+    const files = items.map(it => dataURLtoFile(it.url, it.fname));
+    if (navigator.canShare && navigator.canShare({ files })) {
+      try {
+        await navigator.share({ files });
+        setMsg(`Share sheet open — tap “Save ${files.length > 1 ? files.length + ' Images' : 'Image'}” to add to your camera roll.`);
+        return;
+      } catch (e) {
+        if (e && e.name === 'AbortError') return;   // user closed the sheet
+        console.error(e);
+      }
+    }
+    for (const it of items) {                        // desktop: download each
+      const a = document.createElement('a');
+      a.download = it.fname; a.href = it.url; a.click();
+      await new Promise(r => setTimeout(r, 250));
+    }
+  }
+
   async function downloadPNG() {
     const btn = document.getElementById('dlBtn');
     btn.disabled = true; const old = btn.textContent; btn.textContent = '⏳ RENDERING…';
     try {
       const url = await captureCard();
       const meta = getMeta();
-      const fname = `glrr_${meta.state}_${meta.gender}_${meta.event}`.replace(/[^a-z0-9_]+/gi,'_') + '.png';
-      const a = document.createElement('a');
-      a.download = fname; a.href = url; a.click();
+      const fname = `glrr_${meta.conference || meta.state}_${meta.gender}_${meta.event}`.replace(/[^a-z0-9_]+/gi,'_') + '.png';
+      await saveImages([{ url, fname }]);
       const img = document.getElementById('resultImg');
       img.src = url; img.style.display = 'block';
       document.getElementById('saveHint').style.display = 'block';
@@ -629,14 +670,14 @@ East Lansing"></textarea>
     const sport = ev.sport || meta.sport;
     const award = ev.award || meta.awardtype;
     document.getElementById('t-logo').textContent = headerLogo(meta);
-    const div = headerDivision(meta, ev.division);
+    const div = headerDivision(meta, ev.division || meta.division);
     let metaLine = sport.toUpperCase();
     if (div && div !== 'Open') metaLine += ' · ' + div;
     if (award === 'All-State') metaLine += ' FINALS';
     const gender = displayGender(ev.gender || meta.gender, meta.level);
     document.getElementById('t-meta').textContent  = metaLine;
     document.getElementById('t-event').textContent = `${gender} ${ev.event}`.toUpperCase();
-    document.getElementById('t-award').textContent = award.toUpperCase();
+    document.getElementById('t-award').textContent = awardLabel(meta, award).toUpperCase();
     const max = getMaxResults(meta.state, award, meta.level);
     const rowMeta = Object.assign({}, meta, { eventtype: ev.type, gender: gender, sport: sport, scoring: ev.scoring || meta.scoring });
     renderRows(buildRows(ev.rows.slice(0, max), rowMeta));
@@ -678,11 +719,10 @@ East Lansing"></textarea>
 
   async function downloadAll() {
     if (!GENERATED.length) return;
-    for (const g of GENERATED) {
-      const a = document.createElement('a');
-      a.download = g.fname; a.href = g.url; a.click();
-      await new Promise(r => setTimeout(r, 300));
-    }
+    const btn = document.getElementById('downloadAllBtn');
+    btn.disabled = true; const old = btn.textContent; btn.textContent = '⏳ …';
+    try { await saveImages(GENERATED); }
+    finally { btn.disabled = false; btn.textContent = old; }
   }
 
   // ── Incoming data from the bookmarklet ───────────────────────────────────
