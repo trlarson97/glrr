@@ -342,9 +342,13 @@ East Lansing"></textarea>
     const state = document.getElementById('state').value;
     const sel = document.getElementById('division');
     const divs = STATE_DIVISIONS[state] || ['D1'];
-    sel.innerHTML = divs.map(d => `<option value="${d}">${d}</option>`).join('');
-    document.getElementById('division-field').style.display =
-      (divs.length === 1 && divs[0] === 'Open') ? 'none' : '';
+    const singleOpen = (divs.length === 1 && divs[0] === 'Open');
+    // "Full State" (value "") drops the division off the graphic — for whole-state rankings.
+    const opts = singleOpen ? divs : [...divs, 'Full State'];
+    sel.innerHTML = opts.map(d => d === 'Full State'
+      ? `<option value="">Full State (no division)</option>`
+      : `<option value="${d}">${d}</option>`).join('');
+    document.getElementById('division-field').style.display = singleOpen ? 'none' : '';
   }
 
   function updateScoring() {
@@ -534,7 +538,9 @@ East Lansing"></textarea>
     document.getElementById('stageHolder').style.display = '';
     if (ev.sport)    setVal('sport', ev.sport);
     if (ev.gender)   setVal('gender', ev.gender);
-    if (ev.division) setVal('division', ev.division);
+    // Don't let a parser-detected division clobber an explicit "Full State (no division)"
+    // choice (division select = "") — whole-state rankings stay division-less.
+    if (ev.division && document.getElementById('division').value !== '') setVal('division', ev.division);
     if (ev.type)   { setVal('eventtype', ev.type); updateScoring(); }
     if (ev.scoring)  setVal('scoring', ev.scoring);
     if (ev.award)    setVal('awardtype', ev.award);
@@ -670,7 +676,10 @@ East Lansing"></textarea>
     const sport = ev.sport || meta.sport;
     const award = ev.award || meta.awardtype;
     document.getElementById('t-logo').textContent = headerLogo(meta);
-    const div = headerDivision(meta, ev.division || meta.division);
+    // An explicit "Full State (no division)" choice (HS division select = "") wins over any
+    // division the parser found, so whole-state rankings show no division.
+    const fullState = meta.level !== 'College' && meta.division === '';
+    const div = fullState ? '' : headerDivision(meta, ev.division || meta.division);
     let metaLine = sport.toUpperCase();
     if (div && div !== 'Open') metaLine += ' · ' + div;
     if (award === 'All-State') metaLine += ' FINALS';
